@@ -1,20 +1,19 @@
-// src/app/login/page.tsx
-"use client"; // Mark as a Client Component
+// src/app/login/page.tsx (Polished UI)
+"use client";
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // Used for redirection
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-
-import Link from 'next/link';
+import Link from 'next/link'; // Import Link
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const router = useRouter(); // Initialize the router
-
+  const router = useRouter();
   const supabase = createClient();
+
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMsg(null);
@@ -26,7 +25,6 @@ export default function LoginPage() {
         return;
     }
 
-    // Use Supabase auth signInWithPassword method
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email,
       password: password,
@@ -36,100 +34,97 @@ export default function LoginPage() {
 
     if (error) {
       console.error('Error logging in:', error.message);
-      // Provide more user-friendly errors if needed
       if (error.message.includes('Invalid login credentials')) {
            setErrorMsg('Invalid email or password. Please try again.');
       } else if (error.message.includes('Email not confirmed')) {
-            setErrorMsg('Please confirm your email address first. Check your inbox for the confirmation link.');
-      }
-       else {
+            setErrorMsg('Please confirm your email address first. Check your inbox.');
+      } else {
            setErrorMsg(`Login failed: ${error.message}`);
       }
     } else {
-      console.log('Login successful:', data);
-      // Redirect the user after successful login
-      // For now, redirect to the homepage. Later, redirect to the dashboard.
-      router.push('/dashboard'); // Or router.push('/dashboard');
+      console.log('Login successful');
+      router.push('/dashboard'); // Redirect to dashboard on success
     }
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center text-gray-900">Login</h1>
-        <form onSubmit={handleLogin} className="space-y-6">
+    // Main container - slightly lighter background, centers content
+    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4">
+      {/* Card holding the form */}
+      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
+        {/* Heading */}
+        <h1 className="text-3xl font-bold text-center text-gray-800">
+          Login to Your Account
+        </h1>
+
+        {/* Form */}
+        <form onSubmit={handleLogin} className="space-y-5">
+          {/* Email Input */}
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-gray-700 mb-1"
             >
               Email address
             </label>
             <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
+              id="email" name="email" type="email" autoComplete="email" required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm"
               placeholder="you@example.com"
             />
           </div>
 
+          {/* Password Input */}
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-gray-700"
+              className="block text-sm font-medium text-gray-700 mb-1"
             >
               Password
             </label>
             <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
+              id="password" name="password" type="password" autoComplete="current-password" required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm"
               placeholder="••••••••"
             />
-             {/* Add link to 'Forgot Password?' page later */}
           </div>
-            
-          <div className="text-sm text-center mt-4">
-            <Link href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500">
-                Forgot your password?
-            </Link>
-          </div>
-          
+
+          {/* Forgot Password Link */}
+           <div className="text-sm text-right">
+             <Link href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
+                 Forgot your password?
+             </Link>
+           </div>
+
+          {/* Error Message Area */}
           {errorMsg && (
-            <div className="text-red-600 text-sm text-center">{errorMsg}</div>
+            <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">{errorMsg}</div>
           )}
 
+          {/* Submit Button */}
           <div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed transition duration-150 ease-in-out"
             >
               {loading ? 'Logging In...' : 'Login'}
             </button>
           </div>
 
-           {/* Add link to Sign Up page later */}
-           {/* <div className="text-sm text-center">
-                <p className="text-gray-600">
-                    Don't have an account?{' '}
-                    <a href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
-                        Sign Up
-                    </a>
-                </p>
-            </div> */}
+           {/* Link to Sign Up page */}
+           <div className="text-sm text-center text-gray-600 pt-2">
+                Don&apos;t have an account?{' '}
+                <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
+                    Sign Up
+                </Link>
+            </div>
         </form>
       </div>
     </div>

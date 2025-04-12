@@ -19,7 +19,7 @@ export default function SelectGenrePage() {
   // Updated handler to use dbValue for navigation
   const handleSelectGenre = (genreDbValue: string) => {
     // Navigate to the writing page, passing the database value as the query parameter
-    router.push(`/writing?genre=${encodeURIComponent(genreDbValue)}`);
+    router.push(`/instructions?genre=${encodeURIComponent(genreDbValue)}`);
   };
 
   return (

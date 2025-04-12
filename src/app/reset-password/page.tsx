@@ -1,8 +1,8 @@
-// src/app/reset-password/page.tsx
+// src/app/reset-password/page.tsx (Polished UI)
 "use client";
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client'; // Use browser client
+import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
 export default function ResetPasswordPage() {
@@ -11,19 +11,14 @@ export default function ResetPasswordPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isValidSession, setIsValidSession] = useState<boolean | null>(null); // null = checking, false = invalid, true = valid
+  const [isValidSession, setIsValidSession] = useState<boolean | null>(null);
   const supabase = createClient();
   const router = useRouter();
 
-  // Check if we have a valid recovery session on mount
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-        // The middleware should have handled the hash fragment and created a session
-        // if the recovery link was valid. Check if session exists and possibly type.
-        // Supabase might add specific markers for recovery sessions, check their docs if needed.
-        // For now, just check if a session exists after landing here.
         if (session) {
-             console.log("Recovery session detected");
+             console.log("Recovery session detected for password reset");
              setIsValidSession(true);
         } else {
              console.log("No recovery session detected");
@@ -42,14 +37,13 @@ export default function ResetPasswordPage() {
       setErrorMsg("Passwords do not match.");
       return;
     }
-    if (password.length < 6) { // Enforce minimum length (Supabase default is 6)
+     if (password.length < 6) {
         setErrorMsg("Password must be at least 6 characters long.");
         return;
     }
 
     setLoading(true);
 
-    // updateUser works when authenticated via recovery link
     const { data, error } = await supabase.auth.updateUser({
       password: password,
     });
@@ -64,7 +58,6 @@ export default function ResetPasswordPage() {
       setMessage('Password updated successfully! Redirecting to login...');
       setPassword('');
       setConfirmPassword('');
-      // Redirect to login after a short delay
       setTimeout(() => {
         router.push('/login');
       }, 2000);
@@ -72,55 +65,70 @@ export default function ResetPasswordPage() {
   };
 
   // Show loading/invalid state before form
-  if (isValidSession === null) {
-      return <div className="p-6 text-center">Checking reset link...</div>;
+   if (isValidSession === null) {
+      return (
+        <div className="flex justify-center items-center min-h-screen bg-slate-50">
+            <div className="p-8 text-center">Checking reset link...</div>
+        </div>
+      );
   }
   if (isValidSession === false) {
-      return <div className="p-6 text-center text-red-500">{errorMsg || 'Invalid Link.'}</div>;
+       return (
+         <div className="flex justify-center items-center min-h-screen bg-slate-50">
+            <div className="p-8 text-center text-red-600">{errorMsg || 'Invalid or expired link.'}</div>
+        </div>
+      );
   }
 
-
-  // Only show form if session is valid
+  // Render form if session is valid
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center text-gray-900">Set New Password</h1>
+    // Consistent main container
+    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4">
+      {/* Consistent Card */}
+      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
+        {/* Consistent Heading */}
+        <h1 className="text-3xl font-bold text-center text-gray-800">
+          Set New Password
+        </h1>
          <p className="text-center text-sm text-gray-600">
-             Enter your new password below.
+             Please enter your new password below.
          </p>
-        <form onSubmit={handlePasswordUpdate} className="space-y-6">
+        <form onSubmit={handlePasswordUpdate} className="space-y-5">
+          {/* Consistent Password Input */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">New Password</label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
             <input
               id="password" name="password" type="password" required minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm"
               placeholder="••••••••"
             />
           </div>
+          {/* Consistent Confirm Password Input */}
            <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">Confirm New Password</label>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
             <input
               id="confirmPassword" name="confirmPassword" type="password" required minLength={6}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={loading}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm"
               placeholder="••••••••"
             />
           </div>
 
+          {/* Consistent Message Areas */}
+          {message && <div className="text-green-700 text-sm text-center bg-green-50 p-3 rounded-md border border-green-200">{message}</div>}
+          {errorMsg && <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">{errorMsg}</div>}
 
-          {message && <div className="text-green-600 text-sm text-center">{message}</div>}
-          {errorMsg && <div className="text-red-600 text-sm text-center">{errorMsg}</div>}
-
+          {/* Consistent Submit Button */}
           <div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed transition duration-150 ease-in-out"
             >
               {loading ? 'Updating...' : 'Update Password'}
             </button>

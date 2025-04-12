@@ -1,48 +1,37 @@
-// src/app/admin/submissions/page.tsx
+// src/app/admin/submissions/page.tsx (Clean Paste Version)
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
 
-// Define type for the joined data we expect
+// Keep interface for reference and potential use inside map
 interface SubmissionAdminView {
-  id: number; // Or string
-  created_at: string;
-  user_id: string; // UUID
-  prompt_id: number; // Or string
-  // Joined data - allow for null if join fails or user/prompt deleted
-  users: {
-    email: string | null;
-  } | null;
-  prompts: {
-    genre: string | null;
+    id: number;
+    created_at: string;
+    user_id: string;
+    prompt_id: number;
+    // Define based on the actual keys returned by your SQL function's aliases
+    user_email: string | null;
+    prompt_genre: string | null;
     prompt_text: string | null;
-  } | null;
-  // content_json is not selected in this list view for brevity
 }
 
 export default async function ViewSubmissionsPage() {
     const supabase = await createClient();
 
-    // Admin check is handled by the layout, but RLS ensures data access
+    // Call the database function
+    const { data, error } = await supabase
+        .rpc('get_admin_submissions'); // Use the function confirmed working in SQL Editor
 
-    // Fetch all submissions, joining user email and prompt info
-    const { data: submissions, error } = await supabase
-        .from('submissions')
-        .select(`
-            id,
-            created_at,
-            user_id,
-            prompt_id,
-            users ( email ),
-            prompts ( genre, prompt_text )
-        `)
-        .order('created_at', { ascending: false }); // Newest first
+    // Log raw results ONLY if debugging is still needed
+    // console.log("Raw RPC Error:", error);
+    // console.log("Raw RPC Data:", JSON.stringify(data, null, 2));
 
     if (error) {
-        console.error("Error fetching submissions:", error.message);
-        return <div className="text-red-500 p-4">Error loading submissions. Please ensure Admins have SELECT permission via RLS on submissions, auth.users, and prompts tables.</div>;
+        console.error("Error calling get_admin_submissions RPC:", error.message);
+        return <div className="text-red-500 p-4">Error loading submissions: {error.message}</div>;
     }
 
-    const typedSubmissions = submissions || []; // Let TypeScript infer the type
+    // Ensure data is an array before proceeding
+    const submissions = Array.isArray(data) ? data : [];
 
     return (
          <div>
@@ -53,7 +42,7 @@ export default async function ViewSubmissionsPage() {
                  </Link>
             </div>
 
-             {typedSubmissions.length === 0 ? (
+             {submissions.length === 0 ? (
                 <p className="text-gray-500">No submissions found.</p>
             ) : (
                 <div className="overflow-x-auto shadow rounded-lg">
@@ -68,23 +57,27 @@ export default async function ViewSubmissionsPage() {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {typedSubmissions.map((sub) => (
+                            {/* Map over the submissions array, using the interface type */}
+                            {submissions.map((sub: SubmissionAdminView) => (
                                 <tr key={sub.id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                         {new Date(sub.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' })}
+                                         {sub.created_at ? new Date(sub.created_at).toLocaleString('en-AU', { dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                       {sub.users?.[0]?.email ?? sub.user_id} {/* Access first element */}
+                                        {/* Access properties directly from sub, using correct keys */}
+                                        {sub.user_email ?? sub.user_id}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                        {sub.prompts?.[0]?.genre ?? 'N/A'} {/* Access first element */}
+                                        {sub.prompt_genre ?? 'N/A'}
                                     </td>
-                                    <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate"> {/* Truncate long text */}
-                                        {sub.prompts?.[0]?.prompt_text ?? 'N/A'} {/* Access first element */}
+                                    <td className="px-6 py-4 text-sm text-gray-700 max-w-xs truncate">
+                                        {sub.prompt_text ?? 'N/A'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                         {/* Link to the same student view page */}
-                                        <Link href={`/submission/${sub.id}`} className="text-indigo-600 hover:text-indigo-900">View Details</Link>
+                                        {/* Ensure sub.id exists before creating link */}
+                                        {sub.id ? (
+                                            <Link href={`/admin/submissions/${sub.id}`} className="text-indigo-600 hover:text-indigo-900">View Details</Link>
+                                        ) : null}
                                     </td>
                                 </tr>
                             ))}

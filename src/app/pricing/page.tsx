@@ -1,61 +1,86 @@
-// src/app/pricing/page.tsx
-import SubscribeButton from '@/components/SubscribeButton'; // Import the button component
-import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+// src/app/pricing/page.tsx (Refactored to Client Component)
+"use client"; // <-- Make it a Client Component
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // Use client-side router
+import SubscribeButton from '@/components/SubscribeButton'; // Import the button
+import { createClient } from '@/lib/supabase/client'; // <-- Use CLIENT helper
 import Link from 'next/link';
 
-export default async function PricingPage() {
-     // --- ADD RUNTIME ENV VAR LOGS ---
-  console.log('[Pricing Page Runtime] Checking Env Vars:');
-  console.log('NEXT_PUBLIC_SUPABASE_URL:',
-    process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Exists' : 'MISSING!'
-  );
-  console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY:',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Exists' : 'MISSING!'
-  );
-  // Optional: Log the actual URL prefix to double-check value
-  // console.log('URL Prefix:', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 20));
-  // --- END LOGS ---
-  const supabase = await createClient();
+export default function PricingPage() {
+  const router = useRouter();
+  const supabase = createClient(); // Use client-side client
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // State to track login status
 
-  // Check if user is logged in, redirect if not
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect('/login?message=Please log in to view pricing');
+  useEffect(() => {
+    // Check user session on component mount
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        // If no user session on client, redirect to login
+        router.replace('/login?message=Please log in to view pricing');
+        // Keep loading true as we are redirecting
+      } else {
+         // User is logged in
+         setIsLoggedIn(true);
+         setIsLoading(false); // Stop loading
+      }
+    };
+
+    checkSession();
+  }, [supabase, router]); // Dependencies for useEffect
+
+  // Display loading state while checking session
+  if (isLoading) {
+     return (
+          <div className="flex justify-center items-center min-h-screen bg-slate-50">
+              {/* You can add a nicer spinner component here */}
+              <p className="text-gray-500 animate-pulse">Loading...</p>
+          </div>
+      );
   }
 
-  // Optional: Check if user ALREADY has access (subscribed/admin/free)
-  // If so, maybe redirect them directly to dashboard or practice?
-  // For simplicity now, we'll just show the page. You can add this check later.
-  // const hasAccess = await checkUserAccessStatus(user.id); // Need to import this check
-  // if (hasAccess) {
-  //    redirect('/dashboard?message=You already have access!');
-  // }
+  // If loading is false BUT user somehow isn't logged in (should have redirected, but belts & braces)
+  if (!isLoggedIn) {
+       // This state should ideally not be reached due to the redirect in useEffect
+       // but it prevents rendering the page content if the redirect fails/is slow.
+       return (
+            <div className="flex justify-center items-center min-h-screen bg-slate-50">
+              <p className="text-gray-500">Redirecting to login...</p>
+            </div>
+       );
+  }
 
+  // Render pricing page content only if loading is complete AND user is logged in
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-12">
-      <h1 className="text-4xl font-bold text-center mb-6 text-gray-800">Subscription Required</h1>
-      <div className="bg-white p-8 rounded-lg shadow-md border border-gray-200 text-center">
-        <h2 className="text-2xl font-semibold mb-4 text-gray-700">Unlock Full Access</h2>
-        <p className="text-lg text-gray-600 mb-6">
-          To access unlimited writing practice sessions and all features, please subscribe to our simple plan.
-        </p>
-        <div className="mb-8">
-          <span className="text-4xl font-extrabold text-indigo-600">$15</span>
-          <span className="text-xl font-medium text-gray-500"> AUD / month</span>
-        </div>
-        {/* Render the Subscribe Button */}
-        <SubscribeButton />
-        <p className="text-xs text-gray-400 mt-4">
-          You can manage your subscription anytime.
-        </p>
-        {/* Optional: Link back to dashboard if they somehow landed here */}
-         <div className="mt-6">
-             <Link href="/dashboard" className="text-sm text-indigo-500 hover:underline">
-                 Maybe later, back to Dashboard
-             </Link>
-         </div>
-      </div>
+    // Removed container from here, assuming layout provides it or apply styling as needed
+    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4 py-12">
+       {/* Added container class to center content better */}
+       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-gray-200">
+          <h1 className="text-4xl font-bold text-center mb-6 text-gray-800">Subscription Required</h1>
+          <div className="text-center">
+              <h2 className="text-2xl font-semibold mb-4 text-gray-700">Unlock Full Access</h2>
+              <p className="text-lg text-gray-600 mb-6">
+                  To access unlimited writing practice sessions and all features, please subscribe to our simple plan.
+              </p>
+              <div className="mb-8">
+                  <span className="text-4xl font-extrabold text-indigo-600">$15</span>
+                  <span className="text-xl font-medium text-gray-500"> AUD / month</span>
+              </div>
+              {/* Render the Subscribe Button */}
+              <SubscribeButton />
+              <p className="text-xs text-gray-400 mt-4">
+                  You can manage your subscription anytime.
+              </p>
+              {/* Optional: Link back to dashboard */}
+              <div className="mt-6">
+                  <Link href="/dashboard" className="text-sm text-indigo-500 hover:underline">
+                      Maybe later, back to Dashboard
+                  </Link>
+              </div>
+          </div>
+       </div>
     </div>
   );
 }

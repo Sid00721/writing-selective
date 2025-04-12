@@ -6,30 +6,7 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Header - Simple version for landing page */}
-      <header className="bg-white shadow-sm sticky top-0 z-40">
-        <nav className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex-shrink-0">
-            {/* You could replace text with a logo */}
-            <Link href="/" className="text-2xl font-bold text-indigo-600">
-              Writing Practice
-            </Link>
-          </div>
-          <div className="space-x-4">
-            <Link
-              href="/login"
-              className="text-base font-medium text-gray-500 hover:text-gray-900"
-            >
-              Log In
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
-            >
-              Sign Up
-            </Link>
-          </div>
-        </nav>
-      </header>
+      
 
       {/* Main Content */}
       <main className="flex-grow">

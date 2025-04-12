@@ -5,6 +5,23 @@ import Stripe from 'stripe';
 import { createAdminClient } from '@/lib/supabase/admin'; // 1. Ensure this is UNCOMMENTED
 import { NextResponse } from 'next/server';
 import { type PostgrestError } from '@supabase/supabase-js'; // Import for type safety
+import { createClient } from '@supabase/supabase-js';
+
+try {
+    const buildTimeSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const buildTimeSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (buildTimeSupabaseUrl && buildTimeSupabaseAnonKey) {
+      createClient(buildTimeSupabaseUrl, buildTimeSupabaseAnonKey);
+      console.log("Build-time dummy Supabase client initialized successfully (for analysis only).");
+    } else {
+      // Log warning if public keys aren't available during build, though build would likely fail anyway
+      console.warn("Build-time dummy Supabase client NOT initialized - missing public env vars during build?");
+    }
+  } catch(buildError) {
+     console.error("Error initializing build-time dummy Supabase client:", buildError);
+     // Allow build to continue if this dummy init fails, the real check is at runtime
+  }
+  // --- End Build Step Workaround ---
 
 // Initialize Stripe Client
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {

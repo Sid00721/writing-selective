@@ -17,10 +17,7 @@ export const runtime = 'edge';
 // try { ... } catch { ... }
 
 // Initialize Stripe Client (keep as is)
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-03-31.basil', // Use the version TS expects
-  typescript: true,
-});
+
 
 // Get webhook secret
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
@@ -32,9 +29,26 @@ if (!process.env.SUPABASE_SERVICE_ROLE_KEY) console.error('CRITICAL ERROR (Webho
 // --- Main POST Handler ---
 export async function POST(req: Request) {
     console.log('Edge - Stripe webhook POST request received.');
+
+
+    // --- INITIALIZE STRIPE CLIENT INSIDE HANDLER ---
+    let stripe: Stripe;
+    try {
+        stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+            apiVersion: '2025-03-31.basil',
+            typescript: true,
+        });
+        console.log("Stripe client initialized for request.");
+    } catch (initError: unknown) {
+        const errorMessage = (initError instanceof Error) ? initError.message : 'Failed to init Stripe client';
+        console.error(`Webhook Error: ${errorMessage}`);
+        return new NextResponse(`Webhook Error: ${errorMessage}`, { status: 500 });
+    }
+  // --- END STRIPE INIT ---
+
     let event: Stripe.Event;
     const signature = headers().get('stripe-signature');
-  
+    
     // 1. Read raw body as text and verify webhook signature
     let rawBody: string;
     try {

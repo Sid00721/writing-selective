@@ -50,8 +50,8 @@ export async function POST(req: Request) {
   // } catch (adminClientError: unknown) { ... }
   // --- END REMOVED ---
 
-  let relevantCustomerId: string | null = null;
-  let relevantSubscriptionId: string | null = null;
+  const relevantCustomerId: string | null = null;
+  const relevantSubscriptionId: string | null = null;
   // let relevantUserId: string | null = null; // Not needed without DB updates
 
   // 2. Handle the specific event type (LOGGING ONLY FOR TEST)

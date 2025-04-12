@@ -1,9 +1,10 @@
-// src/app/api/webhooks/stripe/route.ts (With 'as any' assertion for current_period_end)
+// src/app/api/webhooks/stripe/route.ts (Final Version)
 import { headers } from 'next/headers';
 import { buffer } from 'node:stream/consumers';
 import Stripe from 'stripe';
-// import { createAdminClient } from '@/lib/supabase/admin'; // Import Admin Client
-import { NextResponse } from 'next/server'; // Use NextResponse for responses
+import { createAdminClient } from '@/lib/supabase/admin'; // 1. Ensure this is UNCOMMENTED
+import { NextResponse } from 'next/server';
+import { type PostgrestError } from '@supabase/supabase-js'; // Import for type safety
 
 // Initialize Stripe Client
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -11,16 +12,12 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   typescript: true,
 });
 
-// Get webhook secret (ensure this is set in Vercel Production Env Vars)
+// Get webhook secret
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-if (!webhookSecret) {
-  console.error('STRIPE_WEBHOOK_SECRET environment variable is not set');
-}
-if (!process.env.STRIPE_SECRET_KEY) {
-   console.error('STRIPE_SECRET_KEY environment variable is not set');
-}
- if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.warn('SUPABASE_SERVICE_ROLE_KEY environment variable is not set. Webhook may fail to update DB.');
+if (!webhookSecret || !process.env.STRIPE_SECRET_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('CRITICAL ERROR: Missing Stripe/Supabase environment variables for webhook.');
+  // Consider how to handle this - maybe return 500 immediately?
+  // For now, we proceed but log errors if client creation fails later.
 }
 
 // --- Main POST Handler ---
@@ -31,28 +28,31 @@ export async function POST(req: Request) {
 
   // 1. Read raw body and verify webhook signature
   try {
-    if (!signature) {
-      throw new Error('Missing stripe-signature header');
-    }
-    if (!req.body) { // Keep the null check
-        throw new Error('Request body is missing');
-    }
-  
-    // --- REVERT TO 'as any' WITH ESLint DISABLE ---
-    // Disable the ESLint rule specifically for this line
+    if (!signature) throw new Error('Missing stripe-signature header');
+    if (!req.body) throw new Error('Request body is missing');
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const reqBuffer = await buffer(req.body as any); // Cast to any to bypass TS check
-    // --- END REVERT ---
+    const reqBuffer = await buffer(req.body as any); // Keep workaround for buffer type
+
     event = stripe.webhooks.constructEvent(reqBuffer, signature, webhookSecret);
     console.log(`Stripe event constructed: ${event.id}, Type: ${event.type}`);
+
   } catch (err: unknown) {
-      const errorMessage = (err instanceof Error) ? err.message : 'Unknown error';
+      const errorMessage = (err instanceof Error) ? err.message : 'Unknown error during signature verification';
       console.error(`❌ Error verifying webhook signature: ${errorMessage}`);
       return new NextResponse(`Webhook Error: ${errorMessage}`, { status: 400 });
   }
 
-  // Initialize Supabase Admin Client
-//   const supabaseAdmin = createAdminClient();
+  // Initialize Supabase Admin Client (will throw if env vars missing)
+  let supabaseAdmin;
+  try {
+       supabaseAdmin = createAdminClient();
+  } catch (adminClientError: unknown) {
+       const errorMessage = (adminClientError instanceof Error) ? adminClientError.message : 'Failed to init admin client';
+       console.error(`Webhook Error: ${errorMessage}`);
+       return new NextResponse(`Webhook Error: ${errorMessage}`, { status: 500 });
+  }
+
   let relevantCustomerId: string | null = null;
   let relevantSubscriptionId: string | null = null;
   let relevantUserId: string | null = null;
@@ -67,21 +67,18 @@ export async function POST(req: Request) {
         relevantCustomerId = subscription.customer as string;
         relevantSubscriptionId = subscription.id;
         console.log(`Handling ${event.type} for sub ${subscription.id}, status ${subscription.status}`);
-        
-        // --- ADD ESLint Disable and Extract Variable ---
-        // Tell ESLint to ignore the 'no-explicit-any' rule for the next line only
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const periodEnd = (subscription as any).current_period_end;
-        // --- END CHANGES ---
-        
-        // await updateProfileSubscriptionStatus(
-        //   supabaseAdmin,
-        //   relevantCustomerId,
-        //   relevantSubscriptionId,
-        //   subscription.status,
-        //   // Use type assertion to bypass TS error for this specific property
-        //   periodEnd
-        // );
+
+        // 2. UNCOMMENT the call
+        await updateProfileSubscriptionStatus(
+          supabaseAdmin,
+          relevantCustomerId,
+          relevantSubscriptionId,
+          subscription.status,
+          periodEnd // Pass the potentially 'any' value here
+        );
         break;
       }
 
@@ -90,36 +87,36 @@ export async function POST(req: Request) {
          relevantCustomerId = subscription.customer as string;
          relevantSubscriptionId = subscription.id;
          console.log(`Handling ${event.type} for sub ${subscription.id}, setting status to 'canceled'`);
-        //  await updateProfileSubscriptionStatus(
-        //    supabaseAdmin,
-        //    relevantCustomerId,
-        //    relevantSubscriptionId,
-        //    'canceled', // Set status explicitly
-        //    null // Clear period end
-        //  );
-        //  break;
+
+         // 3. UNCOMMENT the call
+         await updateProfileSubscriptionStatus(
+           supabaseAdmin,
+           relevantCustomerId,
+           relevantSubscriptionId,
+           'canceled',
+           null
+         );
+         break; // Added missing break
        }
 
       case 'invoice.paid': {
         const invoice = event.data.object as Stripe.Invoice;
-
-        // --- Use type assertion and disable ESLint for 'subscription' property ---
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const subscriptionId = (invoice as any).subscription as string | null;
-        // --- End modification ---
 
-        // Check if it's for a subscription payment and we got the ID
         if (subscriptionId && invoice.billing_reason === 'subscription_cycle') {
           relevantCustomerId = invoice.customer as string;
-          relevantSubscriptionId = subscriptionId; // Use the ID we extracted safely
+          relevantSubscriptionId = subscriptionId;
           console.log(`Handling ${event.type} for sub ${relevantSubscriptionId}, status ${invoice.status}`);
-        //   await updateProfileSubscriptionStatus(
-        //     supabaseAdmin,
-        //     relevantCustomerId,
-        //     relevantSubscriptionId,
-        //     'active', // Invoice paid means subscription should be active
-        //     invoice.period_end // Assuming invoice.period_end type is correct
-        //   );
+
+          // 4. UNCOMMENT the call
+          await updateProfileSubscriptionStatus(
+            supabaseAdmin,
+            relevantCustomerId,
+            relevantSubscriptionId,
+            'active',
+            invoice.period_end
+          );
         } else {
             console.log(`Invoice ${invoice.id} paid, but not linked to a subscription cycle.`);
         }
@@ -130,15 +127,15 @@ export async function POST(req: Request) {
            const session = event.data.object as Stripe.Checkout.Session;
            console.log(`Handling ${event.type} for session ${session.id}`);
            relevantCustomerId = session.customer as string;
-           relevantSubscriptionId = session.subscription as string; // Available if mode=subscription
-
+           relevantSubscriptionId = session.subscription as string;
            relevantUserId = session.metadata?.user_id ?? null;
 
-           if (session.mode === 'subscription' && relevantSubscriptionId && relevantCustomerId && relevantUserId) {
-            //    await updateProfileCustomerId(supabaseAdmin, relevantUserId, relevantCustomerId);
+           if (session.mode === 'subscription' && relevantCustomerId && relevantUserId) {
+               // 5. UNCOMMENT the call
+               await updateProfileCustomerId(supabaseAdmin, relevantUserId, relevantCustomerId);
                console.log(`Checkout complete for user ${relevantUserId}. Status will be updated by subscription events.`);
            } else {
-                console.warn(`Checkout session ${session.id} completed but missing relevant IDs (sub=${relevantSubscriptionId}, cust=${relevantCustomerId}, user=${relevantUserId})`);
+                console.warn(`Checkout session ${session.id} completed but missing relevant IDs needed for DB update (cust=${relevantCustomerId}, user=${relevantUserId})`);
            }
            break;
        }
@@ -147,90 +144,82 @@ export async function POST(req: Request) {
         console.log(`- Unhandled event type: ${event.type}`);
     }
 
-    // Return a 200 response to acknowledge receipt of the event
     return new NextResponse(JSON.stringify({ received: true }), { status: 200 });
 
   } catch (error: unknown) {
-      const errorMessage = (error instanceof Error) ? error.message : 'Unknown error';
-      console.error(`Webhook handler error for event ${event.id} (Customer: ${relevantCustomerId}, Sub: ${relevantSubscriptionId}):`, error);
+      const errorMessage = (error instanceof Error) ? error.message : 'Unknown error in event handling';
+      console.error(`Webhook handler error processing event ${event.id} (Customer: ${relevantCustomerId}, Sub: ${relevantSubscriptionId}):`, error);
       return new NextResponse(`Webhook handler error: ${errorMessage}`, { status: 500 });
   }
 }
 
 
 // --- Helper Functions to Update Database ---
+// 6. UNCOMMENT these functions
 
-// async function updateProfileSubscriptionStatus(
-//     supabase: ReturnType<typeof createAdminClient>,
-//     stripeCustomerId: string,
-//     stripeSubscriptionId: string,
-//     newStatus: string,
-//     // --- CHANGE PARAMETER TYPE ---
-//     periodEndUnix: unknown // Change type from '... | any' to 'unknown'
-//     // --- END CHANGE ---
-// ) {
-//     // --- ADD TYPE CHECKING/CONVERSION ---
-//     let periodEndISO: string | null = null;
-//     // Check if the received value is actually a number
-//     if (typeof periodEndUnix === 'number') {
-//         // If yes, convert Unix timestamp (seconds) to ISO string
-//         periodEndISO = new Date(periodEndUnix * 1000).toISOString();
-//     } else if (periodEndUnix !== null && periodEndUnix !== undefined) {
-//         // Log if we get something weird that isn't null/undefined or a number
-//         console.warn(`Webhook received unexpected non-numeric type for periodEndUnix: ${typeof periodEndUnix}`);
-//     }
-//     // If it wasn't a number, periodEndISO remains null
-//     // --- END TYPE CHECKING ---
+async function updateProfileSubscriptionStatus(
+    supabase: ReturnType<typeof createAdminClient>,
+    stripeCustomerId: string,
+    stripeSubscriptionId: string,
+    newStatus: string,
+    periodEndUnix: unknown // Use unknown
+) {
+    let periodEndISO: string | null = null;
+    // Type check before using
+    if (typeof periodEndUnix === 'number') {
+        periodEndISO = new Date(periodEndUnix * 1000).toISOString();
+    } else if (periodEndUnix !== null && periodEndUnix !== undefined) {
+        console.warn(`Webhook received unexpected non-numeric type for periodEndUnix: ${typeof periodEndUnix}`);
+    }
 
-//     console.log(`DB Update: Profile for Stripe Customer ${stripeCustomerId}: SubID=${stripeSubscriptionId}, Status=${newStatus}, PeriodEnd=${periodEndISO}`);
+    console.log(`DB Update: Profile for Stripe Customer ${stripeCustomerId}: SubID=${stripeSubscriptionId}, Status=${newStatus}, PeriodEnd=${periodEndISO}`);
 
-//     const { error } = await supabase
-//         .from('profiles')
-//         .update({
-//             stripe_subscription_id: stripeSubscriptionId,
-//             subscription_status: newStatus,
-//             current_period_end: periodEndISO, // Use the safely determined value
-//          })
-//         .eq('stripe_customer_id', stripeCustomerId);
+    const { error } = await supabase
+        .from('profiles')
+        .update({
+            stripe_subscription_id: stripeSubscriptionId,
+            subscription_status: newStatus,
+            current_period_end: periodEndISO,
+         })
+        .eq('stripe_customer_id', stripeCustomerId);
 
-//     if (error) {
-//         console.error(`DB Update Error (Status) for customer ${stripeCustomerId}:`, error);
-//     } else {
-//          console.log(`DB Update Success (Status) for customer ${stripeCustomerId}`);
-//     }
-// }
+    if (error) {
+        console.error(`DB Update Error (Status) for customer ${stripeCustomerId}:`, error);
+    } else {
+         console.log(`DB Update Success (Status) for customer ${stripeCustomerId}`);
+    }
+}
 
-// async function updateProfileCustomerId(
-//     supabase: ReturnType<typeof createAdminClient>,
-//     userId: string,
-//     stripeCustomerId: string
-// ) {
-//      console.log(`DB Update: Profile for User ${userId} with Stripe Customer ID ${stripeCustomerId}`);
-//      const { data: existingData, error: selectError } = await supabase
-//           .from('profiles')
-//           .select('stripe_customer_id')
-//           .eq('id', userId)
-//           .single();
+async function updateProfileCustomerId(
+    supabase: ReturnType<typeof createAdminClient>,
+    userId: string,
+    stripeCustomerId: string
+) {
+     console.log(`DB Update: Profile for User ${userId} with Stripe Customer ID ${stripeCustomerId}`);
+     const { data: existingData, error: selectError } = await supabase
+          .from('profiles')
+          .select('stripe_customer_id')
+          .eq('id', userId)
+          .single();
 
-//       if (selectError && selectError.code !== 'PGRST116') {
-//           console.error(`DB Update Error (Customer ID Select) for user ${userId}:`, selectError);
-//           return;
-//       }
+      if (selectError && selectError.code !== 'PGRST116') { // Allow row not found
+          console.error(`DB Update Error (Customer ID Select) for user ${userId}:`, selectError);
+          return;
+      }
 
-//       if (existingData?.stripe_customer_id === stripeCustomerId) {
-//            console.log(`Customer ID ${stripeCustomerId} already set for user ${userId}. Skipping update.`);
-//            return;
-//       }
+      if (existingData?.stripe_customer_id === stripeCustomerId) {
+           console.log(`Customer ID ${stripeCustomerId} already set for user ${userId}. Skipping update.`);
+           return;
+      }
 
-//      const { error: updateError } = await supabase
-//         .from('profiles')
-//         .update({ stripe_customer_id: stripeCustomerId })
-//         .eq('id', userId);
+     const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ stripe_customer_id: stripeCustomerId })
+        .eq('id', userId);
 
-//       if (updateError) {
-//         console.error(`DB Update Error (Customer ID Update) for user ${userId}:`, updateError);
-//     } else {
-//          console.log(`DB Update Success (Customer ID) for user ${userId}`);
-//     }
-//     // test
-// }
+      if (updateError) {
+        console.error(`DB Update Error (Customer ID Update) for user ${userId}:`, updateError);
+    } else {
+         console.log(`DB Update Success (Customer ID) for user ${userId}`);
+    }
+}

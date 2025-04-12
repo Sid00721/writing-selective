@@ -1,9 +1,9 @@
-// src/components/RichTextEditor.tsx (Full Version with Toolbar & ListPlugin)
+// src/components/RichTextEditor.tsx (Added onTextContentChange Prop)
 "use client";
 
-import React, { useEffect } from 'react';
+import React from 'react'; // Removed useEffect as it wasn't used directly here
 import {
-  $getRoot,
+  $getRoot, // Need $getRoot
   $getSelection,
   EditorState,
   LexicalEditor,
@@ -14,16 +14,16 @@ import {
 // Core Components & Plugins
 import { LexicalComposer, InitialConfigType } from '@lexical/react/LexicalComposer';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
-import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'; // Use RichTextPlugin
+import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
-import { ListPlugin } from '@lexical/react/LexicalListPlugin'; // <-- Import ListPlugin
-import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'; // Named import
+import { ListPlugin } from '@lexical/react/LexicalListPlugin';
+import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 // Node Imports for Rich Text Features
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
-import { ListItemNode, ListNode } from "@lexical/list"; // Ensure these are imported
+import { ListItemNode, ListNode } from "@lexical/list";
 import { CodeHighlightNode, CodeNode } from "@lexical/code";
 import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
 import { AutoLinkNode, LinkNode } from "@lexical/link";
@@ -31,13 +31,15 @@ import { AutoLinkNode, LinkNode } from "@lexical/link";
 // Custom Toolbar Plugin
 import ToolbarPlugin from './ToolbarPlugin'; // Import the toolbar
 
-// Define Props
+// --- UPDATE Props Interface ---
 interface RichTextEditorProps {
-  initialState?: string; // Accept initial state as JSON string (optional)
-  onChange: (stateJson: string) => void; // Callback with updated state JSON string
+  initialState?: string;
+  onChange: (stateJson: string) => void; // Existing prop for full state
+  onTextContentChange?: (text: string) => void; // NEW: Prop for plain text content
 }
+// --- End Update ---
 
-// Basic theme (Tailwind classes) - Ensure this matches your actual theme needs
+// Basic theme (Tailwind classes) - Copy your full theme here
 const editorTheme = {
   ltr: 'text-left',
   rtl: 'text-right',
@@ -64,21 +66,24 @@ const editorTheme = {
       h3: 'text-xl font-semibold mb-2',
   },
   quote: 'pl-4 border-l-4 border-gray-300 italic my-2',
-  // Add more styles as needed
 };
 
-// Define Nodes Used - Make sure all nodes needed for toolbar actions are here
+// Define Nodes Used
 const editorNodes = [
   ParagraphNode, TextNode, HeadingNode, QuoteNode,
   ListNode, ListItemNode, CodeHighlightNode, CodeNode,
   TableCellNode, TableNode, TableRowNode, AutoLinkNode, LinkNode
 ];
 
-// Dummy Error Boundary for Prop requirement on RichTextPlugin
+// Dummy Error Boundary
 const DummyErrorBoundaryForProp: React.FC<{ onError: (error: Error) => void }> = () => null;
 
 // --- The Editor Component ---
-const RichTextEditor: React.FC<RichTextEditorProps> = ({ initialState, onChange }) => {
+const RichTextEditor: React.FC<RichTextEditorProps> = ({
+    initialState,
+    onChange,
+    onTextContentChange // <-- Destructure new prop
+}) => {
 
   const initialConfig: InitialConfigType = {
     namespace: 'WritingSelectiveRichEditor',
@@ -87,59 +92,54 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ initialState, onChange 
       console.error('Lexical Composer Error:', error);
     },
     nodes: editorNodes,
-    editorState: initialState, // Set initial state from prop
+    editorState: initialState,
   };
 
-  // Handler for OnChangePlugin
+  // --- MODIFY the internal onChange handler ---
   const handleOnChange = (editorState: EditorState, editor: LexicalEditor) => {
     editorState.read(() => {
+      // 1. Update full JSON state (existing logic)
       const jsonString = JSON.stringify(editorState.toJSON());
-      onChange(jsonString); // Call parent's onChange with serialized state
+      onChange(jsonString);
+
+      // 2. Get plain text and call new prop if provided (NEW)
+      if (onTextContentChange) {
+        const root = $getRoot();
+        const text = root.getTextContent();
+        onTextContentChange(text); // Pass plain text up
+      }
     });
   };
+  // --- End Modification ---
 
-  // Handler for the actual Error Boundary Wrapper
   const handleBoundaryError = (error: Error) => {
     console.error("LexicalErrorBoundary Caught Error:", error);
   };
 
-  // Simple Placeholder Component
   const Placeholder = () => (
       <div className="absolute top-[0.6rem] left-[0.6rem] text-gray-400 pointer-events-none overflow-hidden text-ellipsis whitespace-nowrap">
           Start writing your response here...
       </div>
   );
 
-
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      {/* Toolbar goes inside Composer, usually above editor area */}
       <ToolbarPlugin />
-
-      {/* Container for the editor plugins and contentEditable */}
-      <div className="relative bg-white border border-gray-300 rounded-b"> {/* Rounded bottom */}
-
+      <div className="relative bg-white border border-gray-300 rounded-b">
         <RichTextPlugin
             contentEditable={
-                // Wrap ContentEditable with the actual Error Boundary
                 <LexicalErrorBoundary onError={handleBoundaryError}>
                     <ContentEditable className={`min-h-[400px] p-2 outline-none resize-none text-gray-900`} />
                 </LexicalErrorBoundary>
             }
             placeholder={<Placeholder />}
-            // Pass the Dummy Component to satisfy the required prop type for RichTextPlugin
             ErrorBoundary={DummyErrorBoundaryForProp}
         />
-
-        {/* Core & Supporting Plugins */}
         <HistoryPlugin />
+        {/* Pass the MODIFIED handleOnChange here */}
         <OnChangePlugin onChange={handleOnChange} />
         <AutoFocusPlugin />
-        <ListPlugin /> {/* <-- Added ListPlugin */}
-
-        {/* Add other plugins like LinkPlugin etc. if needed later */}
-        {/* e.g., <LinkPlugin /> */}
-
+        <ListPlugin />
       </div>
     </LexicalComposer>
   );

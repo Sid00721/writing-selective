@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import WritingSession from '@/components/WritingSession';
 import Link from 'next/link'; // Make sure Link is imported
+import { checkUserAccessStatus } from '@/lib/accessControl';
 
 // Define the structure of the prompt data
 interface Prompt {
@@ -25,9 +26,18 @@ export default async function WritingPage({ searchParams }: PageProps) {
   // 1. Check user session
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    redirect('/login');
+    redirect('/login?message=Please log in to write');
   }
 
+   // --- NEW: ADD ACCESS CHECK ---
+   const hasAccess = await checkUserAccessStatus(user.id);
+   if (!hasAccess) {
+     // User is logged in but doesn't have subscription/free access
+     console.log(`User ${user.id} denied access to /writing, redirecting to /pricing`);
+     redirect('/pricing'); // Redirect non-subscribed users
+   }
+   // --- END ACCESS CHECK ---
+   
   // 2. Get selected genre from query parameters
   const selectedGenre = typeof searchParams?.genre === 'string' ? searchParams.genre : null;
 

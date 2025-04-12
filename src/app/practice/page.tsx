@@ -1,51 +1,57 @@
-// src/app/practice/page.tsx (Updated with dbValue)
-"use client";
+// src/app/practice/page.tsx (Server Component - Imports Client Component)
 
-import { useRouter } from 'next/navigation';
+// Imports for the Server Component part
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+// Remove Link if not used directly here
+// import Link from 'next/link';
+import { checkUserAccessStatus } from '@/lib/accessControl';
+// ---> ADD IMPORT for the separate client component <---
+import GenreSelectionGrid from './GenreSelectionGrid';
 
-// Update genres array to include both display name and database value
+// Genres data definition
+// IMPORTANT: Ensure dbValue matches your database exactly
 const genres = [
-  { name: 'Creative Writing', dbValue: 'Creative', description: 'Develop imaginative stories with engaging characters and plots.', color: 'bg-pink-100 border-pink-300' },
-  { name: 'Persuasive Writing', dbValue: 'Persuasive', description: 'Craft compelling arguments to convince your audience.', color: 'bg-blue-100 border-blue-300' },
-  { name: 'Article Writing', dbValue: 'Article', description: 'Create informative and engaging articles on various topics.', color: 'bg-green-100 border-green-300' }, // Assuming 'Article' in DB
-  { name: 'Diary Entry', dbValue: 'Diary Entry', description: 'Write personal reflections from a specific perspective.', color: 'bg-yellow-100 border-yellow-300' }, // Assuming 'Diary Entry' in DB
-  { name: 'News Report', dbValue: 'News Report', description: 'Develop factual news stories with the key information.', color: 'bg-purple-100 border-purple-300' }, // Assuming 'News Report' in DB
+    { name: 'Creative Writing', dbValue: 'Creative', description: 'Develop imaginative stories with engaging characters and plots.', color: 'bg-pink-100 border-pink-300' },
+    { name: 'Persuasive Writing', dbValue: 'Persuasive', description: 'Craft compelling arguments to convince your audience.', color: 'bg-blue-100 border-blue-300' },
+    { name: 'Article Writing', dbValue: 'Article', description: 'Create informative and engaging articles on various topics.', color: 'bg-green-100 border-green-300' },
+    { name: 'Diary Entry', dbValue: 'Diary Entry', description: 'Write personal reflections from a specific perspective.', color: 'bg-yellow-100 border-yellow-300' },
+    { name: 'News Report', dbValue: 'News Report', description: 'Develop factual news stories with the key information.', color: 'bg-purple-100 border-purple-300' },
 ];
-// *** IMPORTANT: Adjust the `dbValue` for each genre above to exactly match what's stored in your Supabase `prompts` table's `genre` column! ***
 
-export default function SelectGenrePage() {
-  const router = useRouter();
+// --- Server Component: PracticePage ---
+export default async function PracticePage() {
+    const supabase = await createClient();
 
-  // Updated handler to use dbValue for navigation
-  const handleSelectGenre = (genreDbValue: string) => {
-    // Navigate to the writing page, passing the database value as the query parameter
-    router.push(`/instructions?genre=${encodeURIComponent(genreDbValue)}`);
-  };
+    // Check user session first
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+        // Redirect to login if not authenticated
+        redirect('/login?message=Please log in to practice');
+    }
 
-  return (
-    <div className="container mx-auto px-4 py-12">
-      <h1 className="text-3xl md:text-4xl font-bold text-center mb-4">Choose a Writing Genre</h1>
-      <p className="text-lg text-gray-600 text-center mb-10">
-        Select a genre to practice your writing skills. Each genre offers unique prompts to help you prepare for the NSW selective test.
-      </p>
+    // --- ADD ACCESS CHECK ---
+    const hasAccess = await checkUserAccessStatus(user.id);
+    if (!hasAccess) {
+        // User is logged in but doesn't have subscription/free access
+        console.log(`User ${user.id} denied access to /practice, redirecting to /pricing`);
+        redirect('/pricing'); // Redirect non-subscribed users to pricing page
+    }
+    // --- END ACCESS CHECK ---
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {genres.map((genre) => (
-          <div key={genre.name} className={`border rounded-lg p-6 shadow flex flex-col justify-between ${genre.color}`}>
-            <div>
-              <h2 className="text-xl font-semibold mb-2">{genre.name}</h2>
-              <p className="text-gray-700 mb-4 text-sm">{genre.description}</p>
-            </div>
-            <button
-              // Pass the dbValue to the handler
-              onClick={() => handleSelectGenre(genre.dbValue)}
-              className="w-full mt-auto bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded transition duration-150 ease-in-out"
-            >
-              Select
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+    // If user has access, render the page content including the client component for interaction
+    return (
+        <div className="container mx-auto px-4 py-12">
+            <h1 className="text-3xl md:text-4xl font-bold text-center mb-4 text-gray-900"> {/* Added dark text color */}
+                Choose a Writing Genre
+            </h1>
+            <p className="text-lg text-gray-900 text-center mb-10">
+                Select a genre to practice your writing skills. Each genre offers unique prompts to help you prepare for the NSW selective test.
+            </p>
+
+            {/* Render the client component responsible for the grid and navigation */}
+            <GenreSelectionGrid genres={genres} />
+        </div>
+    );
 }
+// --- End Server Component ---

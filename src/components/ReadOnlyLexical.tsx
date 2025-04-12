@@ -72,7 +72,7 @@ const ReadOnlyLexical: React.FC<ReadOnlyLexicalProps> = ({ initialJsonState }) =
         contentEditable={
             <LexicalErrorBoundary onError={handleBoundaryError}>
                 {/* Apply read-only specific styles if needed */}
-                <ContentEditable className="outline-none" />
+                <ContentEditable className="outline-none text-gray-900" />
                 {/* Note: ContentEditable className is less important here as it's not interactive */}
             </LexicalErrorBoundary>
         }

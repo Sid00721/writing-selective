@@ -71,7 +71,7 @@ export default async function SubmissionDetailPage({ params }: PageProps) {
 
       {/* Display Prompt Info */}
       <div className="mb-6 p-4 border rounded bg-gray-50">
-         <h2 className="text-xl font-semibold mb-2">Original Prompt</h2>
+         <h2 className="text-xl font-semibold mb-2  text-gray-900">Original Prompt</h2>
          <p className="text-sm text-gray-500 mb-1">Genre: {typedSubmission.prompts?.genre || 'N/A'}</p>
          <p className="text-gray-700 whitespace-pre-wrap">{typedSubmission.prompts?.prompt_text || 'N/A'}</p>
       </div>
@@ -89,7 +89,7 @@ export default async function SubmissionDetailPage({ params }: PageProps) {
             {typedSubmission.content_json ? (
                 <ReadOnlyLexical initialJsonState={typedSubmission.content_json} />
             ) : (
-                <p className='text-gray-500'>No content saved for this submission.</p>
+                <p className=' text-gray-900'>No content saved for this submission.</p>
             )}
          </div>
       </div>

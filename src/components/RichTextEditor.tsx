@@ -123,7 +123,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ initialState, onChange 
             contentEditable={
                 // Wrap ContentEditable with the actual Error Boundary
                 <LexicalErrorBoundary onError={handleBoundaryError}>
-                    <ContentEditable className={`min-h-[400px] p-2 outline-none resize-none`} />
+                    <ContentEditable className={`min-h-[400px] p-2 outline-none resize-none text-gray-900`} />
                 </LexicalErrorBoundary>
             }
             placeholder={<Placeholder />}

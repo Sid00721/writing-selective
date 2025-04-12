@@ -67,7 +67,7 @@ export default async function SubmissionDetailPage({ params }: PageProps) {
   return (
     <div className="container mx-auto p-6">
       <Link href="/dashboard" className="text-blue-600 hover:underline mb-4 inline-block">&larr; Back to Dashboard</Link>
-      <h1 className="text-3xl font-bold mb-4">Submission Details</h1>
+      <h1 className="text-3xl font-bold mb-4 text-gray-900">Submission Details</h1>
 
       {/* Display Prompt Info */}
       <div className="mb-6 p-4 border rounded bg-gray-50">
@@ -83,7 +83,7 @@ export default async function SubmissionDetailPage({ params }: PageProps) {
 
       {/* Display Submitted Content */}
       <div className="bg-white p-6 rounded-lg shadow-md">
-         <h2 className="text-xl font-semibold mb-4">Your Submission</h2>
+         <h2 className="text-xl font-semibold mb-4  text-gray-900">Your Submission</h2>
          <div className="prose max-w-none"> {/* Basic prose styling */}
              {/* Use the ReadOnlyLexical component */}
             {typedSubmission.content_json ? (

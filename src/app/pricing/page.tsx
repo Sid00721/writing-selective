@@ -5,6 +5,17 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
 export default async function PricingPage() {
+     // --- ADD RUNTIME ENV VAR LOGS ---
+  console.log('[Pricing Page Runtime] Checking Env Vars:');
+  console.log('NEXT_PUBLIC_SUPABASE_URL:',
+    process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Exists' : 'MISSING!'
+  );
+  console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY:',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Exists' : 'MISSING!'
+  );
+  // Optional: Log the actual URL prefix to double-check value
+  // console.log('URL Prefix:', process.env.NEXT_PUBLIC_SUPABASE_URL?.substring(0, 20));
+  // --- END LOGS ---
   const supabase = await createClient();
 
   // Check if user is logged in, redirect if not

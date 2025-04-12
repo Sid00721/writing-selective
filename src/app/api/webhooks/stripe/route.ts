@@ -2,7 +2,7 @@
 import { headers } from 'next/headers';
 import { buffer } from 'node:stream/consumers';
 import Stripe from 'stripe';
-import { createAdminClient } from '@/lib/supabase/admin'; // Import Admin Client
+// import { createAdminClient } from '@/lib/supabase/admin'; // Import Admin Client
 import { NextResponse } from 'next/server'; // Use NextResponse for responses
 
 // Initialize Stripe Client
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   }
 
   // Initialize Supabase Admin Client
-  const supabaseAdmin = createAdminClient();
+//   const supabaseAdmin = createAdminClient();
   let relevantCustomerId: string | null = null;
   let relevantSubscriptionId: string | null = null;
   let relevantUserId: string | null = null;
@@ -74,14 +74,14 @@ export async function POST(req: Request) {
         const periodEnd = (subscription as any).current_period_end;
         // --- END CHANGES ---
         
-        await updateProfileSubscriptionStatus(
-          supabaseAdmin,
-          relevantCustomerId,
-          relevantSubscriptionId,
-          subscription.status,
-          // Use type assertion to bypass TS error for this specific property
-          periodEnd
-        );
+        // await updateProfileSubscriptionStatus(
+        //   supabaseAdmin,
+        //   relevantCustomerId,
+        //   relevantSubscriptionId,
+        //   subscription.status,
+        //   // Use type assertion to bypass TS error for this specific property
+        //   periodEnd
+        // );
         break;
       }
 
@@ -90,14 +90,14 @@ export async function POST(req: Request) {
          relevantCustomerId = subscription.customer as string;
          relevantSubscriptionId = subscription.id;
          console.log(`Handling ${event.type} for sub ${subscription.id}, setting status to 'canceled'`);
-         await updateProfileSubscriptionStatus(
-           supabaseAdmin,
-           relevantCustomerId,
-           relevantSubscriptionId,
-           'canceled', // Set status explicitly
-           null // Clear period end
-         );
-         break;
+        //  await updateProfileSubscriptionStatus(
+        //    supabaseAdmin,
+        //    relevantCustomerId,
+        //    relevantSubscriptionId,
+        //    'canceled', // Set status explicitly
+        //    null // Clear period end
+        //  );
+        //  break;
        }
 
       case 'invoice.paid': {
@@ -113,13 +113,13 @@ export async function POST(req: Request) {
           relevantCustomerId = invoice.customer as string;
           relevantSubscriptionId = subscriptionId; // Use the ID we extracted safely
           console.log(`Handling ${event.type} for sub ${relevantSubscriptionId}, status ${invoice.status}`);
-          await updateProfileSubscriptionStatus(
-            supabaseAdmin,
-            relevantCustomerId,
-            relevantSubscriptionId,
-            'active', // Invoice paid means subscription should be active
-            invoice.period_end // Assuming invoice.period_end type is correct
-          );
+        //   await updateProfileSubscriptionStatus(
+        //     supabaseAdmin,
+        //     relevantCustomerId,
+        //     relevantSubscriptionId,
+        //     'active', // Invoice paid means subscription should be active
+        //     invoice.period_end // Assuming invoice.period_end type is correct
+        //   );
         } else {
             console.log(`Invoice ${invoice.id} paid, but not linked to a subscription cycle.`);
         }
@@ -135,7 +135,7 @@ export async function POST(req: Request) {
            relevantUserId = session.metadata?.user_id ?? null;
 
            if (session.mode === 'subscription' && relevantSubscriptionId && relevantCustomerId && relevantUserId) {
-               await updateProfileCustomerId(supabaseAdmin, relevantUserId, relevantCustomerId);
+            //    await updateProfileCustomerId(supabaseAdmin, relevantUserId, relevantCustomerId);
                console.log(`Checkout complete for user ${relevantUserId}. Status will be updated by subscription events.`);
            } else {
                 console.warn(`Checkout session ${session.id} completed but missing relevant IDs (sub=${relevantSubscriptionId}, cust=${relevantCustomerId}, user=${relevantUserId})`);
@@ -160,77 +160,77 @@ export async function POST(req: Request) {
 
 // --- Helper Functions to Update Database ---
 
-async function updateProfileSubscriptionStatus(
-    supabase: ReturnType<typeof createAdminClient>,
-    stripeCustomerId: string,
-    stripeSubscriptionId: string,
-    newStatus: string,
-    // --- CHANGE PARAMETER TYPE ---
-    periodEndUnix: unknown // Change type from '... | any' to 'unknown'
-    // --- END CHANGE ---
-) {
-    // --- ADD TYPE CHECKING/CONVERSION ---
-    let periodEndISO: string | null = null;
-    // Check if the received value is actually a number
-    if (typeof periodEndUnix === 'number') {
-        // If yes, convert Unix timestamp (seconds) to ISO string
-        periodEndISO = new Date(periodEndUnix * 1000).toISOString();
-    } else if (periodEndUnix !== null && periodEndUnix !== undefined) {
-        // Log if we get something weird that isn't null/undefined or a number
-        console.warn(`Webhook received unexpected non-numeric type for periodEndUnix: ${typeof periodEndUnix}`);
-    }
-    // If it wasn't a number, periodEndISO remains null
-    // --- END TYPE CHECKING ---
+// async function updateProfileSubscriptionStatus(
+//     supabase: ReturnType<typeof createAdminClient>,
+//     stripeCustomerId: string,
+//     stripeSubscriptionId: string,
+//     newStatus: string,
+//     // --- CHANGE PARAMETER TYPE ---
+//     periodEndUnix: unknown // Change type from '... | any' to 'unknown'
+//     // --- END CHANGE ---
+// ) {
+//     // --- ADD TYPE CHECKING/CONVERSION ---
+//     let periodEndISO: string | null = null;
+//     // Check if the received value is actually a number
+//     if (typeof periodEndUnix === 'number') {
+//         // If yes, convert Unix timestamp (seconds) to ISO string
+//         periodEndISO = new Date(periodEndUnix * 1000).toISOString();
+//     } else if (periodEndUnix !== null && periodEndUnix !== undefined) {
+//         // Log if we get something weird that isn't null/undefined or a number
+//         console.warn(`Webhook received unexpected non-numeric type for periodEndUnix: ${typeof periodEndUnix}`);
+//     }
+//     // If it wasn't a number, periodEndISO remains null
+//     // --- END TYPE CHECKING ---
 
-    console.log(`DB Update: Profile for Stripe Customer ${stripeCustomerId}: SubID=${stripeSubscriptionId}, Status=${newStatus}, PeriodEnd=${periodEndISO}`);
+//     console.log(`DB Update: Profile for Stripe Customer ${stripeCustomerId}: SubID=${stripeSubscriptionId}, Status=${newStatus}, PeriodEnd=${periodEndISO}`);
 
-    const { error } = await supabase
-        .from('profiles')
-        .update({
-            stripe_subscription_id: stripeSubscriptionId,
-            subscription_status: newStatus,
-            current_period_end: periodEndISO, // Use the safely determined value
-         })
-        .eq('stripe_customer_id', stripeCustomerId);
+//     const { error } = await supabase
+//         .from('profiles')
+//         .update({
+//             stripe_subscription_id: stripeSubscriptionId,
+//             subscription_status: newStatus,
+//             current_period_end: periodEndISO, // Use the safely determined value
+//          })
+//         .eq('stripe_customer_id', stripeCustomerId);
 
-    if (error) {
-        console.error(`DB Update Error (Status) for customer ${stripeCustomerId}:`, error);
-    } else {
-         console.log(`DB Update Success (Status) for customer ${stripeCustomerId}`);
-    }
-}
+//     if (error) {
+//         console.error(`DB Update Error (Status) for customer ${stripeCustomerId}:`, error);
+//     } else {
+//          console.log(`DB Update Success (Status) for customer ${stripeCustomerId}`);
+//     }
+// }
 
-async function updateProfileCustomerId(
-    supabase: ReturnType<typeof createAdminClient>,
-    userId: string,
-    stripeCustomerId: string
-) {
-     console.log(`DB Update: Profile for User ${userId} with Stripe Customer ID ${stripeCustomerId}`);
-     const { data: existingData, error: selectError } = await supabase
-          .from('profiles')
-          .select('stripe_customer_id')
-          .eq('id', userId)
-          .single();
+// async function updateProfileCustomerId(
+//     supabase: ReturnType<typeof createAdminClient>,
+//     userId: string,
+//     stripeCustomerId: string
+// ) {
+//      console.log(`DB Update: Profile for User ${userId} with Stripe Customer ID ${stripeCustomerId}`);
+//      const { data: existingData, error: selectError } = await supabase
+//           .from('profiles')
+//           .select('stripe_customer_id')
+//           .eq('id', userId)
+//           .single();
 
-      if (selectError && selectError.code !== 'PGRST116') {
-          console.error(`DB Update Error (Customer ID Select) for user ${userId}:`, selectError);
-          return;
-      }
+//       if (selectError && selectError.code !== 'PGRST116') {
+//           console.error(`DB Update Error (Customer ID Select) for user ${userId}:`, selectError);
+//           return;
+//       }
 
-      if (existingData?.stripe_customer_id === stripeCustomerId) {
-           console.log(`Customer ID ${stripeCustomerId} already set for user ${userId}. Skipping update.`);
-           return;
-      }
+//       if (existingData?.stripe_customer_id === stripeCustomerId) {
+//            console.log(`Customer ID ${stripeCustomerId} already set for user ${userId}. Skipping update.`);
+//            return;
+//       }
 
-     const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ stripe_customer_id: stripeCustomerId })
-        .eq('id', userId);
+//      const { error: updateError } = await supabase
+//         .from('profiles')
+//         .update({ stripe_customer_id: stripeCustomerId })
+//         .eq('id', userId);
 
-      if (updateError) {
-        console.error(`DB Update Error (Customer ID Update) for user ${userId}:`, updateError);
-    } else {
-         console.log(`DB Update Success (Customer ID) for user ${userId}`);
-    }
-    // test
-}
+//       if (updateError) {
+//         console.error(`DB Update Error (Customer ID Update) for user ${userId}:`, updateError);
+//     } else {
+//          console.log(`DB Update Success (Customer ID) for user ${userId}`);
+//     }
+//     // test
+// }

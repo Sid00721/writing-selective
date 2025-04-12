@@ -1,33 +1,24 @@
-// src/app/api/webhooks/stripe/route.ts (Complete Functional Version)
+// src/app/api/webhooks/stripe/route.ts (Adapted for Edge Runtime)
+
 import { headers } from 'next/headers';
-import { buffer } from 'node:stream/consumers';
+// Remove Node.js specific buffer import
+// import { buffer } from 'node:stream/consumers';
 import Stripe from 'stripe';
-import { createAdminClient } from '@/lib/supabase/admin'; // Import the admin client creator
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { type PostgrestError } from '@supabase/supabase-js';
-import { createClient } from '@supabase/supabase-js'; // Import for dummy client only
+// No need for the dummy client workaround anymore, let's remove it
+// import { createClient } from '@supabase/supabase-js';
+// --- ADD EDGE RUNTIME EXPORT ---
+export const runtime = 'edge';
+// --- END EDGE RUNTIME EXPORT ---
 
-// --- Build Step Workaround (Attempt) ---
-// Initialize a dummy client at the top level using ONLY public keys.
-// This might satisfy Vercel's build analysis. It is NOT used by the POST handler.
-try {
-  const buildTimeSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const buildTimeSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (buildTimeSupabaseUrl && buildTimeSupabaseAnonKey) {
-    createClient(buildTimeSupabaseUrl, buildTimeSupabaseAnonKey);
-    console.log("Build-time dummy Supabase client initialized successfully (for analysis only).");
-  } else {
-    console.warn("Build-time dummy Supabase client NOT initialized - missing public env vars during build?");
-  }
-} catch(buildError) {
-   console.error("Error initializing build-time dummy Supabase client:", buildError);
-}
-// --- End Build Step Workaround ---
+// Remove dummy client workaround
+// try { ... } catch { ... }
 
-
-// Initialize Stripe Client
+// Initialize Stripe Client (keep as is)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-03-31.basil', // Use the version TS expects based on previous errors
+  apiVersion: '2025-03-31.basil', // Use the version TS expects
   typescript: true,
 });
 
@@ -38,40 +29,42 @@ if (!webhookSecret) console.error('CRITICAL ERROR (Webhook): Missing STRIPE_WEBH
 if (!process.env.STRIPE_SECRET_KEY) console.error('CRITICAL ERROR (Webhook): Missing STRIPE_SECRET_KEY env var.');
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) console.error('CRITICAL ERROR (Webhook): Missing SUPABASE_SERVICE_ROLE_KEY env var.');
 
-
 // --- Main POST Handler ---
 export async function POST(req: Request) {
-  console.log('Stripe webhook POST request received.');
-  let event: Stripe.Event;
-  const signature = headers().get('stripe-signature');
-
-  // 1. Read raw body and verify webhook signature
-  try {
-    if (!signature) throw new Error('Missing stripe-signature header');
-    if (!req.body) throw new Error('Request body is missing');
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const reqBuffer = await buffer(req.body as any); // Keep workaround for buffer type
-
-    event = stripe.webhooks.constructEvent(reqBuffer, signature, webhookSecret);
-    console.log(`Stripe event constructed: ${event.id}, Type: ${event.type}`);
-
-  } catch (err: unknown) {
-      const errorMessage = (err instanceof Error) ? err.message : 'Unknown error during signature verification';
-      console.error(`❌ Error verifying webhook signature: ${errorMessage}`);
-      return new NextResponse(`Webhook Error: ${errorMessage}`, { status: 400 });
-  }
-
-  // Initialize REAL Supabase Admin Client INSIDE the handler
-  let supabaseAdmin;
-  try {
-       supabaseAdmin = createAdminClient(); // Uses SERVICE_ROLE_KEY at runtime
-  } catch (adminClientError: unknown) {
-       const errorMessage = (adminClientError instanceof Error) ? adminClientError.message : 'Failed to init admin client';
-       console.error(`Webhook Error: ${errorMessage}`);
-       // Stop processing if admin client fails
-       return new NextResponse(`Webhook Error: ${errorMessage}`, { status: 500 });
-  }
+    console.log('Edge - Stripe webhook POST request received.');
+    let event: Stripe.Event;
+    const signature = headers().get('stripe-signature');
+  
+    // 1. Read raw body as text and verify webhook signature
+    let rawBody: string;
+    try {
+      if (!signature) throw new Error('Missing stripe-signature header');
+      if (!req.body) throw new Error('Request body is missing');
+  
+      // --- Read body as TEXT for Edge Runtime ---
+      rawBody = await req.text();
+      // --- End change ---
+  
+      event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret); // Pass raw string body
+      console.log(`Edge - Stripe event constructed: ${event.id}, Type: ${event.type}`);
+  
+    } catch (err: unknown) {
+        const errorMessage = (err instanceof Error) ? err.message : 'Unknown error during signature verification';
+        console.error(`❌ Edge - Error verifying webhook signature: ${errorMessage}`);
+        // Use NextResponse for Edge routes
+        return new NextResponse(`Webhook Error: ${errorMessage}`, { status: 400 });
+    }
+  
+    // Initialize Supabase Admin Client (keep deferred logic)
+    let supabaseAdmin;
+    try {
+         supabaseAdmin = createAdminClient();
+    } catch (adminClientError: unknown) {
+         const errorMessage = (adminClientError instanceof Error) ? adminClientError.message : 'Failed to init admin client';
+         console.error(`Edge - Webhook Error: ${errorMessage}`);
+         return new NextResponse(`Webhook Error: ${errorMessage}`, { status: 500 });
+    }
+  
 
   let relevantCustomerId: string | null = null;
   let relevantSubscriptionId: string | null = null;

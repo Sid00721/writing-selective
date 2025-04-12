@@ -49,10 +49,11 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({
             type="button" // Good practice for buttons not submitting forms
             onClick={onClick}
             disabled={disabled}
-            className={`px-2 py-1 mr-1 border rounded ${
-                disabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' :
-                isActive ? 'bg-blue-200 border-blue-400' : 'bg-white hover:bg-gray-100'
-            }`}
+            className={`px-2 py-1 mr-1 border rounded transition-colors duration-150 ${ // Added transition
+              disabled ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : // Disabled: Light text (OK)
+              isActive ? 'bg-blue-200 border-blue-400 text-blue-900' : // Active: Set explicit dark blue text
+              'bg-white hover:bg-gray-100 text-gray-700' // Default: Set explicit dark gray text
+          }`}
             // Use title for accessibility if label is complex, keep aria-label for string labels
             title={typeof label === 'string' ? label : undefined}
             aria-label={typeof label === 'string' ? label : undefined}

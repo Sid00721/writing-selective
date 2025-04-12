@@ -58,11 +58,11 @@ const ReadOnlyLexical: React.FC<ReadOnlyLexicalProps> = ({ initialJsonState }) =
   };
 
   // Placeholder is simple text as ContentEditable won't be empty if state is valid
-   const Placeholder = () => <div className='italic text-gray-400'>Loading content...</div>
+   const Placeholder = () => <div className='italic text-gray-900'>Loading content...</div>
 
   // Only render if initial state exists
   if (!initialJsonState) {
-      return <p className="text-gray-500">No content available.</p>;
+      return <p className="text-gray-900">No content available.</p>;
   }
 
   return (

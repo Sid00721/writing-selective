@@ -232,4 +232,5 @@ async function updateProfileCustomerId(
     } else {
          console.log(`DB Update Success (Customer ID) for user ${userId}`);
     }
+    // test
 }

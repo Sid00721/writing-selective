@@ -28,6 +28,6 @@ export const createAdminClient = (): SupabaseClient => {
     },
   });
 
-  // console.log("Supabase Admin Client Created for request."); // Optional: log creation
+  console.log("Supabase Admin Client Created for request."); // Optional: log creation
   return supabaseAdminClient;
 };

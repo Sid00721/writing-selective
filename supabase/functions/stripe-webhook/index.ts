@@ -1,10 +1,10 @@
 // supabase/functions/stripe-webhook/index.ts
 
-import { serve } from "https://deno.land/std/http/server.ts"; // <-- Use current path
+import { serve } from "https://deno.land/std/http/server.ts"; // <-- Use current path1
 import Stripe from 'https://esm.sh/stripe@16.2.0?target=denonext' // Use esm.sh for Deno compatibility
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.44.4' // Use esm.sh
 
-console.log('Stripe Webhook Edge Function Initializing...')
+console.log('Stripe Webhook Edge Function Initializing....')
 
 // --- Get Environment Variables ---
 // These MUST be set using 'supabase secrets set'

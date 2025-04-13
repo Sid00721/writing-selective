@@ -1,7 +1,7 @@
 // src/app/pricing/page.tsx (Simplified Client Component)
 "use client"; // Keep as client component to use SubscribeButton which likely needs client hooks
 
-import SubscribeButton from '@/components/SubscribeButton'; // Import the button
+// import SubscribeButton from '@/components/SubscribeButton'; // Import the button
 import Link from 'next/link';
 // No Supabase client or auth hooks needed here anymore
 
@@ -28,7 +28,7 @@ export default function PricingPage() {
                   <span className="text-xl font-medium text-gray-500"> AUD / month</span>
               </div>
               {/* Render the Subscribe Button */}
-              <SubscribeButton />
+              {/* <SubscribeButton /> */}
               <p className="text-xs text-gray-400 mt-4">
                   You can manage your subscription anytime.
               </p>

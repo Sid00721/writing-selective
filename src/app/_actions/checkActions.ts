@@ -21,7 +21,19 @@ export interface ActionResult {
 }
 
 export async function createCheckoutSession(): Promise<ActionResult> {
-  const supabase = await createClient();
+  // --- ADD RUNTIME ENV VAR LOGS ---
+  console.log("[Server Action Runtime] Checking Env Vars:");
+  console.log('NEXT_PUBLIC_SUPABASE_URL:',
+    process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Exists' : 'MISSING!'
+  );
+  console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY:',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Exists' : 'MISSING!'
+  );
+  // --- END LOGS ---
+
+  console.log("[Server Action Runtime] Attempting to create Supabase client...");
+  const supabase = await createClient(); // Initialize client
+  console.log("[Server Action Runtime] Supabase client supposedly created.");
 
   // 1. Get User
   const { data: { user }, error: authError } = await supabase.auth.getUser();

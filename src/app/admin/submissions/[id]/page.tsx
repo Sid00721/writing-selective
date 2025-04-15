@@ -1,19 +1,16 @@
 // src/app/admin/submissions/[id]/page.tsx (Uses RPC to fetch data)
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server'; // Use the modified server client
 import Link from 'next/link';
 import ReadOnlyLexical from '@/components/ReadOnlyLexical';
 import { type SerializedEditorState } from 'lexical';
-// Add this import near the top with your other imports
-import { type PostgrestError } from '@supabase/supabase-js';
+import { type PostgrestError } from '@supabase/supabase-js'; // For error typing
 
-// Define expected params shape
+// --- Interface Definitions (Restored) ---
 interface PageProps {
   params: { id: string }; // id from the URL, likely a string from router
 }
 
-// Define the flat shape of data returned by the RPC function
-// Ensure these names match the column names/aliases returned by your SQL function
 interface SubmissionAdminData {
     id: number; // Adjust type if UUID
     created_at: string;
@@ -23,32 +20,50 @@ interface SubmissionAdminData {
     prompt_text: string | null;
     user_email: string | null; // Email from auth.users
 }
+// --- End Interface Definitions ---
 
 
 export default async function AdminSubmissionDetailPage({ params }: PageProps) {
-  const supabase = await createClient();
+  // --- Read Environment Variables ---
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // --- Check if variables exist ---
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Admin Submission Detail Error: Supabase URL or Anon Key missing!");
+    // Render an error message or handle appropriately
+    return (
+        <div className="container mx-auto p-6 text-center text-red-500">
+            Server configuration error. Cannot load submission details.
+        </div>
+    );
+  }
+
+  // --- Create Client by PASSING variables (without await) ---
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   // Convert param ID to number if your DB function expects bigint/int
   // If your ID is UUID, keep it as string: const submissionId = params.id;
   const submissionId = parseInt(params.id, 10);
   if (isNaN(submissionId)) {
-       // Handle invalid ID in URL
-       return (
-           <div className="container mx-auto p-6 text-center text-red-500">
-               Invalid Submission ID in URL.
-           </div>
-       );
+      // Handle invalid ID in URL
+      return (
+          <div className="container mx-auto p-6 text-center text-red-500">
+              Invalid Submission ID in URL.
+          </div>
+      );
   }
 
   // 1. Check user session
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    redirect('/login');
+    redirect('/login'); // Redirect to login if no user
   }
 
   // 2. Check if user is admin (using the is_admin function)
   let isAdmin = false;
   const { data: isAdminResult, error: isAdminError } = await supabase.rpc('is_admin');
+
   if (isAdminError) {
        console.error("Security check failed: Error checking admin status:", isAdminError.message);
        // Fail secure - deny access if check fails
@@ -57,9 +72,10 @@ export default async function AdminSubmissionDetailPage({ params }: PageProps) {
                Could not verify user permissions.
            </div>
        );
-  } else {
+   } else {
+       // Ensure the RPC result is explicitly checked for true
        isAdmin = isAdminResult === true;
-  }
+   }
 
   // 3. Fetch data using RPC - ONLY if user is admin
   let submissionData: SubmissionAdminData | null = null;
@@ -67,7 +83,12 @@ export default async function AdminSubmissionDetailPage({ params }: PageProps) {
 
   if (!isAdmin) {
       console.warn(`User ${user.id} is not admin, denying access to admin submission view.`);
-
+      // Explicitly deny access if not admin
+       return (
+           <div className="container mx-auto p-6 text-center text-red-500">
+               Access Denied. You do not have permission to view this page.
+           </div>
+       );
   } else {
       // Admin fetches using RPC
       console.log(`Admin ${user.id} fetching submission ${submissionId} via RPC...`);
@@ -75,24 +96,25 @@ export default async function AdminSubmissionDetailPage({ params }: PageProps) {
           .rpc('get_submission_details_for_admin', { input_submission_id: submissionId })
           .single(); // Expect a single object back
 
-      fetchError = rpcError;
-      // Type assertion - be sure the RPC returns data matching the interface
+      fetchError = rpcError; // Store potential error
+      // Type assertion - ensure RPC returns data matching the interface
       submissionData = rpcData as SubmissionAdminData | null;
   }
 
-  // 4. Handle errors or data not found
+  // 4. Handle errors or data not found after attempting fetch
   if (fetchError || !submissionData) {
-      console.error(`Error fetching submission ${submissionId} via RPC or not found/authorized:`, fetchError?.message);
-      return (
-          <div className="container mx-auto p-6">
-              <p className="text-red-500 text-center">Could not load submission. It might not exist or you do not have permission to view it.</p>
-              <div className="text-center mt-4">
-                  {/* Point back to admin submissions list */}
-                  <Link href={"/admin/submissions"} className="text-blue-600 hover:underline">Back to Submissions</Link>
-              </div>
-          </div>
-      );
-  }
+       // Log the specific error if it exists
+       console.error(`Error fetching submission ${submissionId} via RPC or not found/authorized:`, fetchError?.message ?? 'Data was null');
+       return (
+           <div className="container mx-auto p-6">
+               <p className="text-red-500 text-center">Could not load submission. It might not exist or you do not have permission to view it.</p>
+               <div className="text-center mt-4">
+                   {/* Point back to admin submissions list */}
+                   <Link href={"/admin/submissions"} className="text-blue-600 hover:underline">Back to Submissions</Link>
+               </div>
+           </div>
+       );
+   }
 
   // 5. Render the page with the fetched data
   return (
@@ -107,7 +129,7 @@ export default async function AdminSubmissionDetailPage({ params }: PageProps) {
           <p className="text-gray-700 whitespace-pre-wrap">{submissionData.prompt_text || 'N/A'}</p>
       </div>
 
-       {/* Display Submission Meta Info (Date and Email/User ID) */}
+      {/* Display Submission Meta Info (Date and Email/User ID) */}
       <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-gray-500 mb-4">
           <p>
               Submitted on: {new Date(submissionData.created_at).toLocaleString('en-AU', { dateStyle: 'full', timeStyle: 'short' })}
@@ -127,7 +149,7 @@ export default async function AdminSubmissionDetailPage({ params }: PageProps) {
 
       {/* Display Submitted Content */}
       <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4  text-gray-900">Student&apos;s Submission</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Student&apos;s Submission</h2>
           <div className="prose max-w-none"> {/* Basic prose styling */}
               {submissionData.content_json ? (
                   // Cast content_json if ReadOnlyLexical is very strict about the type
@@ -141,10 +163,4 @@ export default async function AdminSubmissionDetailPage({ params }: PageProps) {
   );
 }
 
-// Type Definitions (keep if needed elsewhere, but not strictly required by this file)
-// declare module 'react' {
-//     interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
-//         directory?: string;
-//         webkitdirectory?: string;
-//     }
-// }
+// Removed commented-out type definitions at the end as they weren't directly used here.

@@ -324,7 +324,7 @@ Detailed Instructions:
     console.log(`Calling OpenAI API for submission ${submissionId}...`);
     const startTime = Date.now(); // Record start time
     const completion = await openai.chat.completions.create({
-        model: "gpt-4-turbo", // Or "gpt-4o" or your preferred model
+        model: "gpt-3.5-turbo", // Or "gpt-4o" or your preferred model
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }

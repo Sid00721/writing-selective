@@ -1,14 +1,17 @@
-// src/components/WritingSession.tsx (Added Word Count Feature)
+// src/components/WritingSession.tsx (UPDATED WITH FEEDBACK TRIGGER)
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation'; // Keep if needed, removed for now
 import { createClient } from '@/lib/supabase/client'; // Browser client
 import Timer from './Timer';                       // Timer component
 import RichTextEditor from './RichTextEditor';       // RichTextEditor component
 import toast from 'react-hot-toast';               // Toast notifications
+// **** NEW: Import the server action ****
+import { generateFeedbackForSubmission } from '@/app/_actions/feedbackActions'; // Adjust path if needed
 
-// Interfaces (keep as they are)
+
+// Interfaces
 interface Prompt {
   id: number; // Or string
   genre: string;
@@ -26,12 +29,9 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
   const editorStateRef = useRef(editorStateJson); // Keep ref for submit function
   const [isMounted, setIsMounted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // --- NEW: Word Count State ---
   const [wordCount, setWordCount] = useState(0);
-  // --- END NEW ---
 
-  const router = useRouter();
+  // const router = useRouter(); // Not needed if using window.location
   const supabase = createClient();
 
   useEffect(() => { setIsMounted(true); }, []);
@@ -40,59 +40,106 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
     editorStateRef.current = editorStateJson;
   }, [editorStateJson]);
 
-  // Handler for the full JSON state (for submission)
+  // Handler for the full JSON state
   const handleEditorChange = useCallback((newStateJson: string) => {
     setEditorStateJson(newStateJson);
   }, []);
 
-  // --- NEW: Handler for Text Content -> Word Count ---
+  // Handler for Text Content -> Word Count
   const handleTextContentChange = useCallback((text: string) => {
-    // Simple word count: trim whitespace, split by one or more spaces/newlines, filter empty results
     const count = text.trim() === '' ? 0 : text.trim().split(/\s+/).filter(Boolean).length;
     setWordCount(count);
-  }, []); // No dependencies needed
-  // --- END NEW ---
+  }, []);
 
-  // Unified Submit Function (Client-side version)
+  // --- Unified Submit Function (Client-side version) ---
   const submitWriting = useCallback(async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    const loadingToastId = toast.loading('Submitting...');
+    console.log("submitWriting: Function called."); // <-- ADDED LOG
 
-    // ... (keep user check, content check, parse logic as before) ...
-     const { data: { user }, error: userError } = await supabase.auth.getUser();
-     if (userError || !user) { /* ... handle error ... */ setIsSubmitting(false); return; }
-     const currentContentJson = editorStateRef.current;
-     if (!currentContentJson || currentContentJson === initialEmptyState) { /* ... handle error ... */ setIsSubmitting(false); return; }
-     let parsedContent;
-     try { parsedContent = JSON.parse(currentContentJson); }
-     catch(e) { /* ... handle error ... */ setIsSubmitting(false); return; }
+    // --- User and Content Checks ---
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      console.error("submitWriting: User check failed.", userError); // <-- ADDED LOG
+      toast.error('You must be logged in to submit.', { id: loadingToastId });
+      setIsSubmitting(false);
+      return;
+    }
+    const currentContentJson = editorStateRef.current;
+    if (!currentContentJson || currentContentJson === initialEmptyState) {
+      console.warn("submitWriting: Content is empty."); // <-- ADDED LOG
+      toast.error('Cannot submit empty writing.', { id: loadingToastId });
+      setIsSubmitting(false);
+      return;
+    }
+    let parsedContent;
+    try {
+      parsedContent = JSON.parse(currentContentJson);
+    } catch (e) {
+      console.error("submitWriting: Failed to parse editor JSON.", e); // <-- ADDED LOG
+      toast.error('Error processing editor content.', { id: loadingToastId });
+      setIsSubmitting(false);
+      return;
+    }
+    // --- End Checks ---
 
-
+    // *** ADDED initial feedback status ***
     const submissionData = {
       user_id: user.id,
       prompt_id: currentPrompt.id,
       content_json: parsedContent,
+      feedback_status: 'pending' // Set initial status
     };
 
-    console.log("Submitting data:", JSON.stringify(submissionData, null, 2));
-    const { error: insertError } = await supabase
-        .from('submissions')
-        .insert(submissionData);
+    console.log("submitWriting: Attempting to insert submission...", submissionData); // <-- ADDED LOG
 
-    if (insertError) {
-      console.error('Error inserting submission:', insertError.message);
-      toast.error(`Submission failed: ${insertError.message}`);
+    // *** MODIFIED: Insert and SELECT the ID ***
+    const { data: insertResult, error: insertError } = await supabase
+        .from('submissions')
+        .insert(submissionData)
+        .select('id') // Select the ID of the inserted row
+        .single();    // Expect exactly one row back
+
+    // Log insert result
+    console.log("submitWriting: Insert result:", { insertResult, insertError }); // <-- ADDED LOG
+
+    if (insertError || !insertResult) {
+      console.error('submitWriting: Error inserting submission:', insertError?.message);
+      toast.error(`Submission failed: ${insertError?.message || 'Unknown error'}`, { id: loadingToastId });
       setIsSubmitting(false); // Reset on error
     } else {
-      console.log('Submission successful!');
-      toast.success('Submission successful!');
-      setIsSubmitting(false); // Reset state first
-      // Use window.location.href for reliable refresh after submission
+      // **** SUCCESSFUL INSERT ****
+      const newSubmissionId = insertResult.id; // Get the ID
+      console.log(`submitWriting: Submission successful! ID: ${newSubmissionId}`); // <-- ADDED LOG
+      // Update toast message
+      toast.success('Submission saved! Starting feedback generation...', { id: loadingToastId });
+
+      // **** NEW: Trigger feedback generation asynchronously ****
+      console.log(`submitWriting: Calling generateFeedbackForSubmission with ID: ${newSubmissionId}`); // <-- ADDED LOG
+      generateFeedbackForSubmission(newSubmissionId).then(feedbackResult => {
+          // This runs in the background after the user might have navigated away
+          console.log(`submitWriting: Background feedback result for ${newSubmissionId}:`, feedbackResult); // <-- ADDED LOG
+          if (feedbackResult.error) {
+              console.error(`submitWriting: Background feedback generation failed for ${newSubmissionId}:`, feedbackResult.error);
+              // Optional: Update DB status to 'error' via another action?
+          } else if (feedbackResult.success) {
+              console.log(`submitWriting: Background feedback generation triggered/completed successfully for ${newSubmissionId}.`);
+          }
+      }).catch(error => {
+          // Catch errors *calling* the action itself
+          console.error(`submitWriting: Error calling generateFeedbackForSubmission action for ${newSubmissionId}:`, error); // <-- ADDED LOG
+      });
+
+      // Reset submitting state BUT delay redirection slightly to allow toast visibility? Optional.
+      setIsSubmitting(false);
+      console.log("submitWriting: Redirecting to dashboard..."); // <-- ADDED LOG
+      // Redirect immediately (feedback runs in background)
       window.location.href = '/dashboard';
-      // router.refresh(); // These client-side methods were unreliable
-      // router.push('/dashboard');
     }
-  }, [currentPrompt, supabase, isSubmitting, router]); // Added router to dependencies if still used for push/refresh
+   // Ensure currentPrompt and supabase are stable or correctly listed if needed
+  }, [currentPrompt, supabase, isSubmitting]); // Removed router dependency
+
 
   // Timer callback
   const handleTimeUp = useCallback(() => {
@@ -102,58 +149,57 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
   }, [submitWriting]);
 
   // Manual submit handler
-  const handleSubmit = (event?: React.MouseEvent<HTMLButtonElement>) => { // Added optional event arg
-    event?.preventDefault(); // Prevent default if called from a form/button event
+  const handleSubmit = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
     console.log("Manual submission triggered.");
     submitWriting();
   }
+
+  useEffect(() => { setIsMounted(true); }, []);
+
 
   if (!isMounted) {
     return <div className="bg-white p-6 rounded-lg shadow-md text-center">Loading Editor...</div>;
   }
 
-  // --- Main Render ---
+  // --- Main Render (JSX remains largely the same) ---
   return (
     <div className="space-y-6">
-        {/* Prompt Section Card (Keep as is) */}
+        {/* Prompt Section Card */}
         <div className="bg-blue-50 border border-blue-200 p-4 sm:p-6 rounded-lg shadow-sm">
-            {/* ... prompt details ... */}
-             <h2 className="text-lg sm:text-xl font-semibold mb-2 text-blue-900">Your Writing Prompt:</h2>
-             <p className="text-sm text-blue-700 mb-1"> Genre: <span className="font-medium">{currentPrompt.genre}</span></p>
-             <p className="text-base sm:text-lg text-gray-800 whitespace-pre-wrap">{currentPrompt.prompt_text}</p>
+           <h2 className="text-lg sm:text-xl font-semibold mb-2 text-blue-900">Your Writing Prompt:</h2>
+           <p className="text-sm text-blue-700 mb-1"> Genre: <span className="font-medium">{currentPrompt.genre}</span></p>
+           <p className="text-base sm:text-lg text-gray-800 whitespace-pre-wrap">{currentPrompt.prompt_text}</p>
         </div>
 
-        {/* Timer Section (Keep as is) */}
+        {/* Timer Section */}
         <div className="text-center sm:text-right">
-            <Timer initialMinutes={30} onTimeUp={handleTimeUp} />
+           <Timer initialMinutes={30} onTimeUp={handleTimeUp} />
         </div>
 
         {/* Editor Section */}
         <div>
-            <RichTextEditor
-                initialState={editorStateJson}
-                onChange={handleEditorChange}
-                onTextContentChange={handleTextContentChange} // <-- Pass the new handler
-            />
+           <RichTextEditor
+             initialState={editorStateJson}
+             onChange={handleEditorChange}
+             onTextContentChange={handleTextContentChange}
+           />
         </div>
 
-        {/* --- NEW: Word Count Display --- */}
-        <div className="text-right text-sm text-gray-600 -mt-4 pr-1"> {/* Adjust margin/padding as needed */}
+        {/* Word Count Display */}
+        <div className="text-right text-sm text-gray-600 -mt-4 pr-1">
            Word Count: {wordCount}
         </div>
-        {/* --- END NEW --- */}
-
 
         {/* Manual Submit Button */}
-        {/* Note: This button doesn't need type="submit" if not inside a <form> */}
         <div className="mt-6 text-right">
-            <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-md shadow-sm transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                {isSubmitting ? 'Submitting...' : 'Submit Now'}
-            </button>
+           <button
+             onClick={handleSubmit}
+             disabled={isSubmitting}
+             className="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-md shadow-sm transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+           >
+             {isSubmitting ? 'Submitting...' : 'Submit Now'}
+           </button>
         </div>
 
     </div>
@@ -164,8 +210,8 @@ export default WritingSession;
 
 // Type Definitions (Keep as is)
 declare module 'react' {
-    interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
-        directory?: string;
-        webkitdirectory?: string;
-    }
+  interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
+     directory?: string;
+     webkitdirectory?: string;
+  }
 }

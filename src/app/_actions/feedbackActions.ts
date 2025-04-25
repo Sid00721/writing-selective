@@ -319,8 +319,10 @@ Detailed Instructions:
 - Ensure the entire output is ONLY the valid JSON object requested, starting with { and ending with }.
     `;
 
+
     // 5. Call OpenAI API
     console.log(`Calling OpenAI API for submission ${submissionId}...`);
+    const startTime = Date.now(); // Record start time
     const completion = await openai.chat.completions.create({
         model: "gpt-4-turbo", // Or "gpt-4o" or your preferred model
         messages: [
@@ -332,6 +334,10 @@ Detailed Instructions:
         // max_tokens: 2500, // Optional: Set a token limit if needed
     });
 
+    const endTime = Date.now(); // Record end time
+    const duration = endTime - startTime;
+    console.log(`OpenAI API call for ${submissionId} succeeded in ${duration} ms`); // <-- ADD THIS LOG
+
     const aiResponseContent = completion.choices[0]?.message?.content;
 
     if (!aiResponseContent) {
@@ -340,6 +346,7 @@ Detailed Instructions:
         throw new Error('OpenAI response content was empty or null.');
     }
     console.log(`OpenAI response received for submission ${submissionId}.`);
+
 
 
     // 6. Parse the Response

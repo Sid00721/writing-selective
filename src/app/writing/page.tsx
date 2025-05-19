@@ -1,8 +1,8 @@
-// src/app/writing/page.tsx (Updated for Don't Repeat Prompts & createClient fix)
+// src/app/writing/page.tsx
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server'; // Use the modified server client
-import WritingSession from '@/components/WritingSession';
-import Link from 'next/link'; // Make sure Link is imported
+import WritingSession from '@/components/WritingSession'; // Ensure this path is correct
+import Link from 'next/link';
 import { checkUserAccessStatus } from '@/lib/accessControl'; // Keep access check
 
 // Define the structure of the prompt data
@@ -10,7 +10,7 @@ interface Prompt {
   id: number; // Or string if your IDs are UUIDs etc.
   genre: string;
   prompt_text: string;
-  is_active?: boolean;
+  is_active?: boolean; // is_active is used in the query
 }
 
 // Define the props structure including searchParams
@@ -23,12 +23,11 @@ export default async function WritingPage({ searchParams }: PageProps) {
 
   // --- Read Environment Variables ---
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; // Using Anon key for server component
 
   // --- Check if variables exist ---
   if (!supabaseUrl || !supabaseKey) {
     console.error("Writing Page Error: Supabase URL or Anon Key missing!");
-    // Render an error message or handle appropriately
     return (
         <div className="container mx-auto p-6 text-center text-red-500">
             Server configuration error. Cannot load writing session.
@@ -36,7 +35,7 @@ export default async function WritingPage({ searchParams }: PageProps) {
     );
   }
 
-  // --- Create Client by PASSING variables (without await) ---
+  // --- Create Client by PASSING variables ---
   const supabase = createClient(supabaseUrl, supabaseKey);
 
 
@@ -47,11 +46,10 @@ export default async function WritingPage({ searchParams }: PageProps) {
   }
 
   // --- ADD ACCESS CHECK ---
-  const hasAccess = await checkUserAccessStatus(user.id); // Assuming this function doesn't need the client passed
+  const hasAccess = await checkUserAccessStatus(user.id);
   if (!hasAccess) {
-    // User is logged in but doesn't have subscription/free access
     console.log(`User ${user.id} denied access to /writing, redirecting to /pricing`);
-    redirect('/pricing'); // Redirect non-subscribed users
+    redirect('/pricing');
   }
   // --- END ACCESS CHECK ---
 
@@ -63,6 +61,8 @@ export default async function WritingPage({ searchParams }: PageProps) {
     console.log('No genre selected, redirecting to /practice');
     redirect('/practice');
   }
+  console.log("Attempting to find prompt for GENRE:", selectedGenre, "for USER:", user.id);
+
 
   // --- Fetch IDs of prompts already submitted by the user ---
   const { data: submittedPromptsData, error: submittedError } = await supabase
@@ -72,40 +72,47 @@ export default async function WritingPage({ searchParams }: PageProps) {
 
   if (submittedError) {
     console.error("Error fetching user's submitted prompts:", submittedError.message);
-    // Handle error
     return (
         <div className="container mx-auto p-6 text-center">
-             <p className="text-red-500">Error checking your submission history. Please try again.</p>
-             <Link href="/practice" className="text-blue-600 hover:underline mt-4 inline-block">Choose a genre</Link>
+            <p className="text-red-500">Error checking your submission history. Please try again.</p>
+            <Link href="/practice" className="text-blue-600 hover:underline mt-4 inline-block">Choose a genre</Link>
         </div>
     );
   }
 
   // Create an array of IDs the user has already submitted
   const submittedPromptIds = (submittedPromptsData || [])
-                              .map(sub => sub.prompt_id)
-                              .filter(id => id !== null) as number[]; // Filter out nulls and assert type
-  console.log("User has submitted prompts with IDs:", submittedPromptIds);
+                                .map(sub => sub.prompt_id)
+                                .filter(id => id !== null && id !== undefined) as number[]; // Ensure not null/undefined
+  console.log("User has submitted prompt IDs:", submittedPromptIds);
   // --- END OF FETCH SUBMITTED IDS ---
 
   // 3. Fetch active prompts for the selected genre, EXCLUDING submitted ones
   let query = supabase
     .from('prompts')
-    .select('*')
+    .select('*') // Select all fields of the prompt for debugging, can refine later
     .eq('is_active', true) // Ensure only active prompts are considered
     .eq('genre', selectedGenre); // Filter by genre
+
+  console.log("Initial query for available prompts (before excluding submitted): genre =", selectedGenre, "is_active = true");
 
   // Add the filter to exclude submitted prompt IDs IF the array is not empty
   if (submittedPromptIds.length > 0) {
     query = query.not('id', 'in', `(${submittedPromptIds.join(',')})`);
-    console.log("Querying prompts excluding IDs:", submittedPromptIds);
+    console.log("Querying prompts EXCLUDING IDs:", submittedPromptIds);
+  } else {
+    console.log("No submitted prompts to exclude for this user, or submittedPromptIds array is empty.");
   }
 
-  const { data: availablePrompts, error: fetchError } = await query;
+  const { data: availablePrompts, error: fetchPromptsError } = await query; // Renamed error variable
 
-  // Handle potential fetching errors
-  if (fetchError) {
-    console.error(`Error fetching available prompts for genre "${selectedGenre}":`, fetchError.message);
+  console.log("AVAILABLE PROMPTS after filtering:", availablePrompts);
+  console.log("Error fetching available prompts:", fetchPromptsError);
+
+
+  // Handle potential fetching errors for available prompts
+  if (fetchPromptsError) {
+    console.error(`Error fetching available prompts for genre "${selectedGenre}":`, fetchPromptsError.message);
     return (
         <div className="container mx-auto p-6 text-center">
             <p className="text-red-500">Error loading writing prompt. Please try again later.</p>
@@ -116,12 +123,15 @@ export default async function WritingPage({ searchParams }: PageProps) {
 
   // --- Handle case where NO *unsubmitted* prompts are left ---
   if (!availablePrompts || availablePrompts.length === 0) {
+    console.log(`No unattempted '${selectedGenre}' prompts found. Displaying 'all completed' message.`);
     return (
         <div className="container mx-auto p-6 text-center">
-            <p className="text-gray-600 font-semibold">Congratulations!</p>
+            <p className="text-gray-600 font-semibold text-xl">Congratulations!</p>
             <p className="text-gray-500 mt-2">You seem to have completed all available &apos;{selectedGenre}&apos; prompts.</p>
             <p className="text-gray-500 mt-1">Check back later or try another genre.</p>
-            <Link href="/practice" className="text-blue-600 hover:underline mt-6 inline-block">Choose a different genre</Link>
+            <Link href="/practice" className="text-blue-600 hover:underline mt-6 inline-block px-6 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                Choose a different genre
+            </Link>
         </div>
     );
   }
@@ -129,15 +139,19 @@ export default async function WritingPage({ searchParams }: PageProps) {
 
   // 4. Select a random prompt from the *available* list
   const randomIndex = Math.floor(Math.random() * availablePrompts.length);
-  const currentPrompt: Prompt = availablePrompts[randomIndex];
+  // Ensure currentPrompt is correctly typed as Prompt.
+  // The 'select(*)' will fetch all columns, so it should match the Prompt interface.
+  const currentPrompt: Prompt = availablePrompts[randomIndex] as Prompt;
+  console.log("Selected prompt for session:", currentPrompt);
+
 
   // 5. Render the Writing Session with the selected prompt
   return (
-    <div className="container mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-4 text-center text-gray-900">Writing Practice</h1>
-        <p className="text-center text-gray-500 mb-6">Genre: {selectedGenre}</p>
-        {/* Pass the selected, available prompt to the session component */}
+    // Increased max-width for the overall writing page content
+    <div className="container mx-auto px-4 py-8 md:py-12">
+      <div className="max-w-5xl mx-auto"> {/* INCREASED WIDTH HERE from max-w-3xl */}
         <WritingSession currentPrompt={currentPrompt} />
+      </div>
     </div>
   );
 }

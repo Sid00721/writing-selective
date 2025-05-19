@@ -7,11 +7,11 @@ import GenreSelectionGrid from './GenreSelectionGrid'; // Client component for i
 
 // Genres data definition (Ensure dbValue matches your database exactly)
 const genres = [
-    { name: 'Creative Writing', dbValue: 'Creative', description: 'Develop imaginative stories with engaging characters and plots.', color: 'bg-pink-100 border-pink-300' },
-    { name: 'Persuasive Writing', dbValue: 'Persuasive', description: 'Craft compelling arguments to convince your audience.', color: 'bg-blue-100 border-blue-300' },
-    { name: 'Article Writing', dbValue: 'Article', description: 'Create informative and engaging articles on various topics.', color: 'bg-green-100 border-green-300' },
-    { name: 'Diary Entry', dbValue: 'Diary Entry', description: 'Write personal reflections from a specific perspective.', color: 'bg-yellow-100 border-yellow-300' },
-    { name: 'News Report', dbValue: 'News Report', description: 'Develop factual news stories with the key information.', color: 'bg-purple-100 border-purple-300' },
+    { name: 'Creative Writing', dbValue: 'Creative', description: 'Develop imaginative stories with engaging characters and plots.', bgColor: 'bg-pink-100', borderColor: 'border-pink-300', textColor: 'text-pink-700', buttonHoverBg: 'hover:bg-pink-200' },
+    { name: 'Persuasive Writing', dbValue: 'Persuasive', description: 'Craft compelling arguments to convince your audience.', bgColor: 'bg-sky-100', borderColor: 'border-sky-300', textColor: 'text-sky-700', buttonHoverBg: 'hover:bg-sky-200' }, // Changed blue to sky for better Tailwind naming
+    { name: 'Article Writing', dbValue: 'Article', description: 'Create informative and engaging articles on various topics.', bgColor: 'bg-green-100', borderColor: 'border-green-300', textColor: 'text-green-700', buttonHoverBg: 'hover:bg-green-200' },
+    { name: 'Diary Entry', dbValue: 'Diary Entry', description: 'Write personal reflections from a specific perspective.', bgColor: 'bg-yellow-100', borderColor: 'border-yellow-300', textColor: 'text-yellow-700', buttonHoverBg: 'hover:bg-yellow-200' },
+    { name: 'News Report', dbValue: 'News Report', description: 'Develop factual news stories with the key information.', bgColor: 'bg-purple-100', borderColor: 'border-purple-300', textColor: 'text-purple-700', buttonHoverBg: 'hover:bg-purple-200' },
 ];
 
 // --- Server Component: PracticePage ---
@@ -55,17 +55,16 @@ export default async function PracticePage() {
     // --- END ACCESS CHECK ---
 
     // If user has access, render the page content including the client component for interaction
-    return (
-        <div className="container mx-auto px-4 py-12">
-            <h1 className="text-3xl md:text-4xl font-bold text-center mb-4 text-gray-900">
-                Choose a Writing Genre
-            </h1>
-            <p className="text-lg text-gray-700 text-center mb-10 max-w-3xl mx-auto"> {/* Slightly adjusted color/width */}
-                Select a genre to practice your writing skills. Each genre offers unique prompts to help you prepare for the NSW selective test.
-            </p>
-
-            {/* Render the client component responsible for the grid and navigation */}
-            {/* Pass the genres data to the client component */}
+     return (
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+            <div className="text-center max-w-3xl mx-auto">
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 text-gray-900">
+                    Choose a Writing Genre
+                </h1>
+                <p className="text-lg text-gray-700 mb-10 md:mb-12">
+                    Select a genre to practice your writing skills. Each genre offers unique prompts to help you prepare for the NSW selective test.
+                </p>
+            </div>
             <GenreSelectionGrid genres={genres} />
         </div>
     );

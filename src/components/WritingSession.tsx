@@ -1,19 +1,16 @@
-// src/components/WritingSession.tsx (UPDATED WITH FEEDBACK TRIGGER)
+// src/components/WritingSession.tsx
 "use client";
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-// import { useRouter } from 'next/navigation'; // Keep if needed, removed for now
-import { createClient } from '@/lib/supabase/client'; // Browser client
-import Timer from './Timer';                       // Timer component
-import RichTextEditor from './RichTextEditor';       // RichTextEditor component
-import toast from 'react-hot-toast';               // Toast notifications
-// **** NEW: Import the server action ****
-import { generateFeedbackForSubmission } from '@/app/_actions/feedbackActions'; // Adjust path if needed
+import { createClient } from '@/lib/supabase/client';
+import Timer from './Timer';
+import RichTextEditor from './RichTextEditor';
+import toast from 'react-hot-toast';
+import { generateFeedbackForSubmission } from '@/app/_actions/feedbackActions';
+import { CheckCircle, AlertCircle, Edit2 } from 'lucide-react'; // Using Edit2 for Word Count icon
 
-
-// Interfaces
 interface Prompt {
-  id: number; // Or string
+  id: number;
   genre: string;
   prompt_text: string;
 }
@@ -21,197 +18,161 @@ interface WritingSessionProps {
   currentPrompt: Prompt;
 }
 
-// Define a basic empty Lexical state
 const initialEmptyState = '{"root":{"children":[{"type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"root","version":1}}';
+
+const getGenreBadgeClass = (genre: string): string => {
+  // Using lighter backgrounds for these small badges for better text contrast with darker text
+  switch (genre.toLowerCase()) {
+    case 'persuasive': return 'bg-sky-100 text-sky-700';
+    case 'creative': return 'bg-purple-100 text-purple-700';
+    case 'informative': return 'bg-amber-100 text-amber-700';
+    case 'article': return 'bg-teal-100 text-teal-700';
+    case 'diary entry': return 'bg-pink-100 text-pink-700';
+    case 'news report': return 'bg-blue-100 text-blue-700';
+    default: return 'bg-gray-100 text-gray-700';
+  }
+};
 
 const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
   const [editorStateJson, setEditorStateJson] = useState<string>(initialEmptyState);
-  const editorStateRef = useRef(editorStateJson); // Keep ref for submit function
+  const editorStateRef = useRef(editorStateJson);
   const [isMounted, setIsMounted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [wordCount, setWordCount] = useState(0);
 
-  // const router = useRouter(); // Not needed if using window.location
   const supabase = createClient();
 
   useEffect(() => { setIsMounted(true); }, []);
-
-  useEffect(() => {
-    editorStateRef.current = editorStateJson;
-  }, [editorStateJson]);
-
-  // Handler for the full JSON state
-  const handleEditorChange = useCallback((newStateJson: string) => {
-    setEditorStateJson(newStateJson);
-  }, []);
-
-  // Handler for Text Content -> Word Count
+  useEffect(() => { editorStateRef.current = editorStateJson; }, [editorStateJson]);
+  const handleEditorChange = useCallback((newStateJson: string) => setEditorStateJson(newStateJson), []);
   const handleTextContentChange = useCallback((text: string) => {
     const count = text.trim() === '' ? 0 : text.trim().split(/\s+/).filter(Boolean).length;
     setWordCount(count);
   }, []);
 
-  // --- Unified Submit Function (Client-side version) ---
   const submitWriting = useCallback(async () => {
+    // ... (submitWriting logic remains largely the same) ...
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const loadingToastId = toast.loading('Submitting...');
-    console.log("submitWriting: Function called."); // <-- ADDED LOG
-
-    // --- User and Content Checks ---
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error("submitWriting: User check failed.", userError); // <-- ADDED LOG
-      toast.error('You must be logged in to submit.', { id: loadingToastId });
-      setIsSubmitting(false);
-      return;
+    const loadingToastId = toast.loading('Submitting your work...');
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('You must be logged in to submit.', { id: loadingToastId, icon: <AlertCircle /> });
+      setIsSubmitting(false); return;
     }
     const currentContentJson = editorStateRef.current;
-    if (!currentContentJson || currentContentJson === initialEmptyState) {
-      console.warn("submitWriting: Content is empty."); // <-- ADDED LOG
-      toast.error('Cannot submit empty writing.', { id: loadingToastId });
-      setIsSubmitting(false);
-      return;
+    if (!currentContentJson || currentContentJson === initialEmptyState || wordCount === 0) {
+      toast.error('Cannot submit empty writing.', { id: loadingToastId, icon: <AlertCircle /> });
+      setIsSubmitting(false); return;
     }
     let parsedContent;
-    try {
-      parsedContent = JSON.parse(currentContentJson);
-    } catch (e) {
-      console.error("submitWriting: Failed to parse editor JSON.", e); // <-- ADDED LOG
-      toast.error('Error processing editor content.', { id: loadingToastId });
-      setIsSubmitting(false);
-      return;
+    try { parsedContent = JSON.parse(currentContentJson); }
+    catch (e) {
+      toast.error('Error processing editor content.', { id: loadingToastId, icon: <AlertCircle /> });
+      setIsSubmitting(false); return;
     }
-    // --- End Checks ---
 
-    // *** ADDED initial feedback status ***
     const submissionData = {
-      user_id: user.id,
-      prompt_id: currentPrompt.id,
-      content_json: parsedContent,
-      feedback_status: 'pending' // Set initial status
+      user_id: user.id, prompt_id: currentPrompt.id, content_json: parsedContent,
+      feedback_status: 'pending', word_count: wordCount
     };
 
-    console.log("submitWriting: Attempting to insert submission...", submissionData); // <-- ADDED LOG
-
-    // *** MODIFIED: Insert and SELECT the ID ***
     const { data: insertResult, error: insertError } = await supabase
-        .from('submissions')
-        .insert(submissionData)
-        .select('id') // Select the ID of the inserted row
-        .single();    // Expect exactly one row back
-
-    // Log insert result
-    console.log("submitWriting: Insert result:", { insertResult, insertError }); // <-- ADDED LOG
+      .from('submissions').insert(submissionData).select('id').single();
 
     if (insertError || !insertResult) {
-      console.error('submitWriting: Error inserting submission:', insertError?.message);
-      toast.error(`Submission failed: ${insertError?.message || 'Unknown error'}`, { id: loadingToastId });
-      setIsSubmitting(false); // Reset on error
-    } else {
-      // **** SUCCESSFUL INSERT ****
-      const newSubmissionId = insertResult.id; // Get the ID
-      console.log(`submitWriting: Submission successful! ID: ${newSubmissionId}`); // <-- ADDED LOG
-      // Update toast message
-      toast.success('Submission saved! Starting feedback generation...', { id: loadingToastId });
-
-      // **** NEW: Trigger feedback generation asynchronously ****
-      console.log(`submitWriting: Calling generateFeedbackForSubmission with ID: ${newSubmissionId}`); // <-- ADDED LOG
-      generateFeedbackForSubmission(newSubmissionId).then(feedbackResult => {
-          // This runs in the background after the user might have navigated away
-          console.log(`submitWriting: Background feedback result for ${newSubmissionId}:`, feedbackResult); // <-- ADDED LOG
-          if (feedbackResult.error) {
-              console.error(`submitWriting: Background feedback generation failed for ${newSubmissionId}:`, feedbackResult.error);
-              // Optional: Update DB status to 'error' via another action?
-          } else if (feedbackResult.success) {
-              console.log(`submitWriting: Background feedback generation triggered/completed successfully for ${newSubmissionId}.`);
-          }
-      }).catch(error => {
-          // Catch errors *calling* the action itself
-          console.error(`submitWriting: Error calling generateFeedbackForSubmission action for ${newSubmissionId}:`, error); // <-- ADDED LOG
-      });
-
-      // Reset submitting state BUT delay redirection slightly to allow toast visibility? Optional.
+      toast.error(`Submission failed: ${insertError?.message || 'Unknown error'}`, { id: loadingToastId, icon: <AlertCircle /> });
       setIsSubmitting(false);
-      console.log("submitWriting: Redirecting to dashboard..."); // <-- ADDED LOG
-      // Redirect immediately (feedback runs in background)
-      window.location.href = '/dashboard';
+    } else {
+      const newSubmissionId = insertResult.id;
+      toast.success('Submission saved! Generating feedback...', { id: loadingToastId, icon: <CheckCircle />, duration: 3000 });
+      generateFeedbackForSubmission(newSubmissionId)
+        .then(res => console.log("Feedback generation result:", res))
+        .catch(err => console.error("Error calling feedback action:", err));
+      
+      setTimeout(() => {
+        setIsSubmitting(false);
+        window.location.href = '/dashboard';
+        toast.dismiss(loadingToastId);
+      }, 1000);
     }
-   // Ensure currentPrompt and supabase are stable or correctly listed if needed
-  }, [currentPrompt, supabase, isSubmitting]); // Removed router dependency
+  }, [currentPrompt, supabase, isSubmitting, wordCount]);
 
-
-  // Timer callback
   const handleTimeUp = useCallback(() => {
-    console.log("Time's up! Auto-submitting...");
-    toast("Time is up! Submitting your work automatically.", { duration: 3000, icon: '⏳' });
+    toast("Time's up! Submitting your work automatically.", { duration: 4000, icon: '⏳' });
     submitWriting();
   }, [submitWriting]);
 
-  // Manual submit handler
-  const handleSubmit = (event?: React.MouseEvent<HTMLButtonElement>) => {
-    event?.preventDefault();
-    console.log("Manual submission triggered.");
-    submitWriting();
-  }
+  const handleSubmitClick = () => { submitWriting(); };
 
   useEffect(() => { setIsMounted(true); }, []);
 
-
-  if (!isMounted) {
-    return <div className="bg-white p-6 rounded-lg shadow-md text-center">Loading Editor...</div>;
+  if (!isMounted || !currentPrompt) {
+    return (
+      <div className="flex justify-center items-center min-h-[50vh] p-6">
+        <p className="text-gray-500 text-lg">Loading Writing Session...</p>
+      </div>
+    );
   }
 
-  // --- Main Render (JSX remains largely the same) ---
+  const genreBadgeStyle = `${getGenreBadgeClass(currentPrompt.genre)} px-2.5 py-0.5 rounded-full text-xs font-semibold`;
+  const statusBadgeBaseStyle = "flex items-center space-x-2 px-3 py-1.5 rounded-md border shadow-sm transition-colors bg-white border-gray-300 text-gray-800";
+
+
   return (
-    <div className="space-y-6">
-        {/* Prompt Section Card */}
-        <div className="bg-blue-50 border border-blue-200 p-4 sm:p-6 rounded-lg shadow-sm">
-           <h2 className="text-lg sm:text-xl font-semibold mb-2 text-blue-900">Your Writing Prompt:</h2>
-           <p className="text-sm text-blue-700 mb-1"> Genre: <span className="font-medium">{currentPrompt.genre}</span></p>
-           <p className="text-base sm:text-lg text-gray-800 whitespace-pre-wrap">{currentPrompt.prompt_text}</p>
+    <div className="space-y-6 md:space-y-8">
+      {/* Top Info Bar: Prompt/Genre on Left, Timer/Word Count on Right */}
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4 py-3 border-b border-gray-200">
+        {/* Left: Prompt Info */}
+        <div className="flex-grow space-y-1.5">
+          <h1 className="text-xl lg:text-2xl font-semibold text-gray-900 leading-tight">
+            {currentPrompt.prompt_text}
+          </h1>
+          <div className="flex"> {/* Container for genre badge to keep it inline-block like */}
+            <span className={genreBadgeStyle}>
+              {currentPrompt.genre}
+            </span>
+          </div>
         </div>
 
-        {/* Timer Section */}
-        <div className="text-center sm:text-right">
-           <Timer initialMinutes={30} onTimeUp={handleTimeUp} />
+        {/* Right: Status (Timer & Word Count) - Styled like Timer */}
+        <div className="flex-shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto mt-3 md:mt-0">
+          <div
+            className={`${statusBadgeBaseStyle} w-full sm:w-auto justify-center sm:justify-start`}
+            title={`Word Count: ${wordCount}`}
+          >
+            <Edit2 size={18} className="flex-shrink-0 text-gray-500" />
+            <span className="font-mono text-lg font-semibold text-gray-900">
+              {wordCount} <span className="hidden sm:inline text-xs text-gray-500 normal-case font-medium">words</span>
+            </span>
+          </div>
+          <Timer initialMinutes={30} onTimeUp={handleTimeUp} showTextLabel={false} /> {/* showTextLabel={false} for icon+time */}
         </div>
+      </div>
 
-        {/* Editor Section */}
-        <div>
-           <RichTextEditor
-             initialState={editorStateJson}
-             onChange={handleEditorChange}
-             onTextContentChange={handleTextContentChange}
-           />
-        </div>
+      {/* Editor Section */}
+      <div className="bg-white rounded-md shadow">
+         <RichTextEditor
+            key={currentPrompt.id}
+            initialState={initialEmptyState}
+            onChange={handleEditorChange}
+            onTextContentChange={handleTextContentChange}
+          />
+      </div>
 
-        {/* Word Count Display */}
-        <div className="text-right text-sm text-gray-600 -mt-4 pr-1">
-           Word Count: {wordCount}
-        </div>
-
-        {/* Manual Submit Button */}
-        <div className="mt-6 text-right">
-           <button
-             onClick={handleSubmit}
-             disabled={isSubmitting}
-             className="px-5 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-md shadow-sm transition duration-150 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
-           >
-             {isSubmitting ? 'Submitting...' : 'Submit Now'}
-           </button>
-        </div>
-
+      {/* Bottom Action Bar */}
+      <div className="flex justify-end items-center mt-6 pt-6 border-t border-gray-200">
+        <button
+          onClick={handleSubmitClick}
+          disabled={isSubmitting || wordCount === 0}
+          className="px-8 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? 'Submitting...' : 'Submit Now'}
+        </button>
+      </div>
     </div>
   );
 };
 
 export default WritingSession;
-
-// Type Definitions (Keep as is)
-declare module 'react' {
-  interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
-     directory?: string;
-     webkitdirectory?: string;
-  }
-}

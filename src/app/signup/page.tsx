@@ -1,27 +1,37 @@
-// src/app/signup/page.tsx (Polished UI)
+// src/app/signup/page.tsx
 "use client";
 
-import { useState } from 'react';
+import { useState, ChangeEvent, FormEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import Link from 'next/link'; // Import Link
+import Link from 'next/link';
 
 export default function SignUpPage() {
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  // Add state for confirm password if desired
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
 
-  const handleSignUp = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSignUp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
-    // Add password confirmation check here if input is added
+
     if (password.length < 6) {
-        setErrorMsg("Password must be at least 6 characters long.");
-        return;
+      setErrorMsg("Password must be at least 6 characters long.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg("Passwords do not match.");
+      return;
+    }
+    if (!agreedToTerms) {
+      setErrorMsg("You must agree to the Terms of Service and Privacy Policy.");
+      return;
     }
 
     setLoading(true);
@@ -39,23 +49,41 @@ export default function SignUpPage() {
     } else {
       console.log('Sign up successful:', data);
       setSuccessMsg('Sign up successful! Please check your email for a confirmation link.');
+      setFullName('');
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
+      setAgreedToTerms(false);
     }
   };
 
   return (
-    // Consistent main container
-    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4">
-      {/* Consistent Card */}
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
-        {/* Consistent Heading */}
-        <h1 className="text-3xl font-bold text-center text-gray-800">
+    // This outer div centers the card on the page
+    <div className="flex flex-col justify-center items-center min-h-screen bg-slate-50 px-4 py-12">
+      {/* "Selective Writing" brand text removed from here */}
+
+      <div className="w-full max-w-md bg-white p-6 sm:p-8 md:p-10 rounded-xl shadow-2xl border-2 border-gray-800">
+        <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-6 sm:mb-8">
           Create Your Account
         </h1>
 
         <form onSubmit={handleSignUp} className="space-y-5">
-          {/* Consistent Email Input */}
+          {/* Optional Full Name Input - Uncomment and adapt if needed
+          <div>
+            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name
+            </label>
+            <input
+              id="fullName" name="fullName" type="text" autoComplete="name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={loading}
+              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800 focus:border-gray-800 sm:text-sm text-gray-900"
+              placeholder="Your Full Name"
+            />
+          </div>
+          */}
+
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email address
@@ -65,54 +93,82 @@ export default function SignUpPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={loading}
-              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm text-gray-900"
+              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800 focus:border-gray-800 sm:text-sm text-gray-900"
               placeholder="you@example.com"
             />
           </div>
 
-          {/* Consistent Password Input */}
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password (min. 6 characters)
+              Password <span className="text-xs text-gray-500">(min. 6 characters)</span>
             </label>
             <input
               id="password" name="password" type="password" autoComplete="new-password" required minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
-              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 focus:border-indigo-400 sm:text-sm text-gray-900"
+              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800 focus:border-gray-800 sm:text-sm text-gray-900"
               placeholder="••••••••"
             />
-             {/* Optional: Add Confirm Password input here with same styling */}
           </div>
 
-          {/* Consistent Message Areas */}
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+              Confirm Password
+            </label>
+            <input
+              id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" required minLength={6}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={loading}
+              className="block w-full px-4 py-2.5 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800 focus:border-gray-800 sm:text-sm text-gray-900"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 pt-1">
+            <input
+              id="terms" name="terms" type="checkbox" required
+              checked={agreedToTerms}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setAgreedToTerms(e.target.checked)}
+              disabled={loading}
+              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <label htmlFor="terms" className="text-sm text-gray-600">
+              I agree to the{' '}
+              <Link href="/terms" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
+                Terms of Service
+              </Link>{' '}
+              and{' '}
+              <Link href="/privacy" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
+                Privacy Policy
+              </Link>.
+            </label>
+          </div>
+
           {successMsg && (
             <div className="text-green-700 text-sm text-center bg-green-50 p-3 rounded-md border border-green-200">{successMsg}</div>
           )}
           {errorMsg && (
-            <div className="text-red-600 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">{errorMsg}</div>
+            <div className="text-red-700 text-sm text-center bg-red-50 p-3 rounded-md border border-red-200">{errorMsg}</div>
           )}
 
-
-          {/* Consistent Submit Button */}
           <div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed transition duration-150 ease-in-out"
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm sm:text-base font-medium text-white bg-gray-800 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-60 transition duration-150 ease-in-out"
             >
-              {loading ? 'Creating Account...' : 'Sign Up'}
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
           </div>
 
-           {/* Consistent Link */}
-           <div className="text-sm text-center text-gray-600 pt-2">
-                Already have an account?{' '}
-                <Link href="/login" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
-                    Login
-                </Link>
-            </div>
+          <div className="text-sm text-center text-gray-600 pt-2 sm:pt-4">
+            Already have an account?{' '}
+            <Link href="/login" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
+              Log In
+            </Link>
+          </div>
         </form>
       </div>
     </div>

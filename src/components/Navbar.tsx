@@ -1,137 +1,231 @@
 // src/components/Navbar.tsx
-"use client";
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
+import {
+  LayoutDashboard,
+  Edit3 as PracticeIcon,
+  ShieldCheck,
+  User as UserIcon,
+  LogOut,
+  Menu,
+  X,
+} from "lucide-react";
 
-import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client'; // Browser client
-import { useEffect, useState } from 'react';
-import type { User } from '@supabase/supabase-js';
-// Import icons if desired
-import { LayoutDashboard, LogOut, LogIn, UserPlus, Settings, ShieldCheck } from 'lucide-react';
-
+// ---- Types ---------------------------------------------------------------
 interface Profile {
   is_admin: boolean;
-  // Add other profile fields if needed later
 }
 
-export default function Navbar() {
-    const [user, setUser] = useState<User | null>(null);
-    const [profile, setProfile] = useState<Profile | null>(null);
-    const [loading, setLoading] = useState(true);
-    const supabase = createClient();
+interface NavLink {
+  text: string;
+  href: string;
+  icon?: React.ReactNode; // mobile icons
+}
 
-    useEffect(() => {
-        const fetchUserAndProfile = async () => {
-            setLoading(true);
-            const { data: { user: authUser } } = await supabase.auth.getUser();
-            setUser(authUser);
+// ---- Component -----------------------------------------------------------
+export default function AuthenticatedHeader() {
+  const supabase = createClient();
 
-            if (authUser) {
-                // Fetch profile only if user is logged in
-                const { data: userProfile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('is_admin')
-                    .eq('id', authUser.id)
-                    .single();
+  // auth & profile state
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-                if (profileError) {
-                    console.error("Error fetching user profile:", profileError);
-                }
-                setProfile(userProfile as Profile | null);
-            } else {
-                setProfile(null); // No profile if no user
-            }
-            setLoading(false);
-        };
+  // mobile menu
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-        fetchUserAndProfile();
+  // fetch user + profile once, then listen for auth changes
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+      setUser(authUser);
 
-        // Listen for auth changes
-        const { data: authListener } = supabase.auth.onAuthStateChange(
-            (event, session) => {
-                const currentUser = session?.user ?? null;
-                setUser(currentUser);
-                 // Re-fetch profile on auth change if user logs in/out
-                if (currentUser) {
-                     supabase.from('profiles').select('is_admin').eq('id', currentUser.id).single()
-                        .then(({ data, error }) => {
-                            if (error) console.error("Error fetching profile on auth change:", error);
-                            setProfile(data as Profile | null);
-                        });
-                } else {
-                     setProfile(null);
-                }
-            }
-        );
-
-        // Cleanup listener on unmount
-        return () => {
-            authListener?.subscription?.unsubscribe();
-        };
-    }, [supabase]);
-
-
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        // No need to manually redirect, onAuthStateChange should handle state update
-        // Or use router.push('/login') if needed after signout
+      if (authUser) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", authUser.id)
+          .single();
+        setProfile(error ? { is_admin: false } : (data as Profile));
+      }
+      setLoading(false);
     };
 
-    const isAdmin = profile?.is_admin ?? false;
+    load();
 
-    return (
-        <nav className="bg-white shadow-md border-b border-gray-200 sticky top-0 z-50">
-            <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-16">
-                    {/* Logo/Brand */}
-                    <div className="flex-shrink-0 flex items-center">
-                        <Link href="/" className="text-xl font-bold text-indigo-600 hover:text-indigo-700">
-                            Writing Practice {/* Or your App Name/Logo */}
-                        </Link>
-                    </div>
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        setIsMobileOpen(false);
 
-                    {/* Navigation Links */}
-                    <div className="flex items-center space-x-4 sm:space-x-6">
-                        {loading ? (
-                           <div className="text-sm text-gray-500">Loading...</div>
-                        ) : user ? (
-                            // Logged In Links
-                            <>
-                                <Link href="/practice" className="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
-                                    Practice
-                                </Link>
-                                <Link href="/dashboard" className="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
-                                    Dashboard
-                                </Link>
-                                {isAdmin && ( // Show Admin link only if admin
-                                    <Link href="/admin" className="flex items-center text-purple-600 hover:text-purple-800 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
-                                        <ShieldCheck className="mr-1 h-4 w-4" /> Admin
-                                    </Link>
-                                )}
-                                <span className="text-sm text-gray-500 hidden sm:inline">
-                                    {user.email}
-                                </span>
-                                <button
-                                    onClick={handleLogout}
-                                    className="flex items-center text-gray-500 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out"
-                                    title="Logout"
-                                >
-                                    <LogOut className="h-4 w-4 sm:mr-1" /> <span className="hidden sm:inline">Logout</span>
-                                </button>
-                            </>
-                        ) : (
-                            // Logged Out Links
-                            <>
-                                <Link href="/login" className="flex items-center text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out">
-                                   <LogIn className="mr-1 h-4 w-4" /> Login
-                                </Link>
-                                <Link href="/signup" className="flex items-center bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-2 rounded-md text-sm font-medium shadow-sm transition duration-150 ease-in-out">
-                                    <UserPlus className="mr-1 h-4 w-4" /> Sign Up
-                                </Link>
-                            </>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </nav>
+        if (currentUser) {
+          supabase
+            .from("profiles")
+            .select("is_admin")
+            .eq("id", currentUser.id)
+            .single()
+            .then(({ data, error }) =>
+              setProfile(error ? { is_admin: false } : (data as Profile))
+            );
+        } else setProfile(null);
+      }
     );
+
+    return () => listener?.subscription?.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleLogout = async () => {
+    setLoading(true);
+    await supabase.auth.signOut();
+    setLoading(false);
+    setIsMobileOpen(false);
+  };
+
+  // ── Display data --------------------------------------------------------
+  const isAdmin = profile?.is_admin ?? false;
+  const brand = "Selective Writing";
+
+  const navLinks: NavLink[] = [
+    { text: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
+    { text: "Practice", href: "/practice", icon: <PracticeIcon size={18} /> },
+  ];
+
+  // ---- Loading skeleton (keeps layout steady) ----------------------------
+  if (loading && !user) {
+    return (
+      <header className="bg-white shadow-sm sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-4 md:px-8 lg:px-16 flex justify-between">
+          <span className="text-2xl font-bold text-gray-800">{brand}</span>
+          <span className="text-sm text-gray-500">Loading…</span>
+        </div>
+      </header>
+    );
+  }
+
+  // If somehow unauthenticated, render nothing (your layout should redirect)
+  if (!user) return null;
+
+  // ---- Main header -------------------------------------------------------
+  return (
+    <header className="bg-white shadow-sm sticky top-0 z-50">
+      <div className="container mx-auto px-6 py-4 md:px-8 lg:px-16">
+        <div className="flex items-center justify-between">
+          {/* Brand */}
+          <Link href="/dashboard" className="text-2xl font-bold text-gray-800">
+            {brand}
+          </Link>
+
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center space-x-2 lg:space-x-4">
+            {navLinks.map((link) => (
+              <Link
+                key={link.text}
+                href={link.href}
+                className="px-3 py-2 text-gray-600 hover:text-gray-900 font-medium rounded-md text-sm lg:text-base"
+              >
+                {link.text}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Desktop actions */}
+          <div className="hidden md:flex items-center space-x-2">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="px-3 py-1.5 rounded-md text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 flex items-center gap-x-1.5"
+              >
+                <ShieldCheck size={16} />
+                Admin
+              </Link>
+            )}
+
+            <span
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-white text-gray-700 border border-gray-300 flex items-center gap-x-1.5 cursor-default"
+              title={user.email ?? "User"}
+            >
+              <UserIcon size={16} className="text-gray-500" />
+              <span className="truncate max-w-[100px] hidden lg:inline">
+                {user.email}
+              </span>
+            </span>
+
+            <button
+              onClick={handleLogout}
+              disabled={loading}
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 flex items-center gap-x-1.5 disabled:opacity-60"
+            >
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Logout</span>
+            </button>
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="md:hidden">
+            <button
+              onClick={() => setIsMobileOpen(!isMobileOpen)}
+              className="text-gray-600 hover:text-gray-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-gray-500 p-2 rounded-md"
+              aria-controls="mobile-menu"
+              aria-expanded={isMobileOpen}
+            >
+              <span className="sr-only">Open main menu</span>
+              {isMobileOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {isMobileOpen && (
+        <div className="md:hidden" id="mobile-menu">
+          <nav className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
+            {navLinks.map((link) => (
+              <Link
+                key={link.text}
+                href={link.href}
+                onClick={() => setIsMobileOpen(false)}
+                className="flex items-center px-3 py-2 text-base font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 rounded-md"
+              >
+                {link.icon && <span className="mr-2">{link.icon}</span>}
+                {link.text}
+              </Link>
+            ))}
+
+            {isAdmin && (
+              <Link
+                href="/admin"
+                onClick={() => setIsMobileOpen(false)}
+                className="flex items-center px-3 py-2 text-base font-medium text-purple-600 hover:bg-purple-50 hover:text-purple-700 rounded-md"
+              >
+                <ShieldCheck className="mr-2" size={18} /> Admin
+              </Link>
+            )}
+
+            <div className="pt-3 mt-2 border-t border-gray-100">
+              <div className="flex items-center px-3 mb-2 text-gray-500">
+                <UserIcon size={18} className="mr-2" />
+                <span className="truncate">{user.email}</span>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                disabled={loading}
+                className="w-full flex items-center px-3 py-2 text-base font-medium text-gray-700 hover:bg-red-50 hover:text-red-600 rounded-md disabled:opacity-60"
+              >
+                <LogOut className="mr-2" size={18} />
+                Logout
+              </button>
+            </div>
+          </nav>
+        </div>
+      )}
+    </header>
+  );
 }

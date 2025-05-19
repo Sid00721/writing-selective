@@ -6,29 +6,22 @@ import OpenAI from 'openai';
 
 // --- TYPE DEFINITIONS ---
 
-// Basic interface for Lexical nodes used in text extraction
 interface LexicalNode {
     type: string;
     text?: string;
     children?: LexicalNode[];
-    // Other properties like format, tag, etc. might exist
 }
 
-// Basic interface for the expected root structure of Lexical JSON
 interface LexicalRootObject {
     root: {
       children: LexicalNode[];
-      // Other root properties might exist but aren't needed for extraction
-      // *** MODIFIED: Use unknown instead of any for index signature ***
       [key: string]: unknown;
     };
-    // *** MODIFIED: Use unknown instead of any for index signature ***
     [key: string]: unknown;
-  }
+}
 
-// Define the structure expected from the Supabase query fetching submission data
 interface SubmissionWithPromptData {
-  content_json: LexicalRootObject | null; // Use the specific Lexical type here
+  content_json: LexicalRootObject | null;
   prompt_id: number | null;
   prompts: {
     genre: string;
@@ -36,30 +29,29 @@ interface SubmissionWithPromptData {
   } | null;
 }
 
-// Define the structure we expect back from OpenAI after feedback generation
+interface CriterionFeedback {
+  score: number;
+  explanation: string;
+  positives: string[];
+  improvements: string[];
+}
+
+// AIFeedbackResponse matches your refined prompt's requested JSON structure
 interface AIFeedbackResponse {
   genre: string;
   scores: {
-    structure_organisation?: { score?: number; explanation?: string };
-    language_vocabulary?: { score?: number; explanation?: string };
-    grammar_spelling_punctuation?: { score?: number; explanation?: string };
-    genre_conventions?: { score?: number; explanation?: string };
-    creativity_effectiveness_voice?: { score?: number; explanation?: string };
+    structure_organisation: CriterionFeedback;
+    language_vocabulary: CriterionFeedback;
+    grammar_spelling_punctuation: CriterionFeedback;
+    genre_conventions: CriterionFeedback;
+    creativity_effectiveness_voice: CriterionFeedback;
   };
-  totalScore?: number;
-  overallComment?: string;
-  highlights?: { quote?: string; criterion?: string; comment?: string }[];
-  suggestions?: {
-    structure_organisation?: string[];
-    language_vocabulary?: string[];
-    grammar_spelling_punctuation?: string[];
-    genre_conventions?: string[];
-    creativity_effectiveness_voice?: string[];
-  };
+  totalScore: number;
+  overallComment: string;
+  strengths: string[];           // Overall strengths from AI
+  areasForImprovement: string[]; // Overall areas for improvement from AI
 }
 
-// Define the structure for storing marking criteria
-// IMPORTANT: Ensure keys match genre values from DB EXACTLY (case-sensitive).
 const markingCriteria = {
   "Creative": {
      "Structure & Organisation": "High: Clear orientation, complication, and resolution; logical sequence; effective paragraphs. Low: No clear beginning/middle/end; disjointed flow; poor or no paragraphing.",
@@ -96,84 +88,32 @@ const markingCriteria = {
       "Genre Conventions": "High: First-person voice; includes thoughts and feelings. Low: Not reflective or emotional; lacks perspective.",
       "Creativity / Effectiveness / Voice": "High: Honest and believable voice; emotional impact. Low: Flat or fake-sounding; no real engagement."
    }
-   // Consider moving this to a separate file (e.g., lib/criteria.ts)
 };
 
-
-// --- UTILITY FUNCTION: Extract Plain Text from Lexical JSON ---
-/**
- * Traverses a Lexical JSON structure and extracts the plain text content.
- * Adds basic paragraph and line break handling.
- * @param lexicalJson The JSON object from the editor state, matching LexicalRootObject structure or null/undefined.
- * @returns The extracted plain text as a string.
- */
-// *** Uses the specific LexicalRootObject type instead of 'any' to satisfy ESLint ***
 function extractPlainTextFromLexical(lexicalJson: LexicalRootObject | null | undefined): string {
     let textContent = '';
-
-    // Handle null or undefined input gracefully
-    if (!lexicalJson) {
-        // console.warn("Lexical JSON input is null or undefined."); // Optional warning
+    if (!lexicalJson) { return ''; }
+    if (typeof lexicalJson !== 'object' || !lexicalJson.root || !Array.isArray(lexicalJson.root.children)) {
+        console.warn("Invalid Lexical JSON for text extraction:", lexicalJson);
         return '';
     }
-
-    // Basic check for the expected root structure
-    if (typeof lexicalJson !== 'object' || !lexicalJson.root || !Array.isArray(lexicalJson.root.children)) {
-        console.warn("Invalid or unexpected Lexical JSON structure received during text extraction:", lexicalJson);
-        return ''; // Return empty string if structure is not as expected
-    }
-
-    // Internal recursive function for traversal
     function traverse(nodes: LexicalNode[]) {
         for (const node of nodes) {
-            // Extract text from 'text' nodes
-            if (node.type === 'text' && typeof node.text === 'string') {
-                textContent += node.text;
-            }
-            // Handle explicit line breaks
-            else if (node.type === 'linebreak') {
-                 // Add a newline, ensuring not to add multiple if already ending with whitespace
-                 if (textContent.length > 0 && !/\s$/.test(textContent)) {
-                     textContent += '\n';
-                 } else if (textContent.length === 0) {
-                     textContent += '\n';
-                 }
-            }
-
-            // Recurse into children if they exist
-            if (Array.isArray(node.children) && node.children.length > 0) {
-                traverse(node.children);
-            }
-
-            // Add paragraph breaks (double newline) after processing block-level elements
-            // This ensures separation between paragraphs, list items, etc.
+            if (node.type === 'text' && typeof node.text === 'string') { textContent += node.text; }
+            else if (node.type === 'linebreak') { textContent += (textContent.length > 0 && !/\s$/.test(textContent)) ? '\n' : (textContent.length === 0 ? '\n' : '');}
+            if (Array.isArray(node.children) && node.children.length > 0) { traverse(node.children); }
             if (['paragraph', 'heading', 'list', 'listitem', 'quote'].includes(node.type)) {
-                 // Add double newline if text exists and doesn't already end with significant whitespace
-                 if (textContent.length > 0 && !/\s\s$/.test(textContent)) {
-                     textContent += '\n\n';
-                 }
+                 if (textContent.length > 0 && !/\s\s$/.test(textContent)) { textContent += '\n\n'; }
             }
         }
     }
-    // --- End internal traverse function ---
-
-    traverse(lexicalJson.root.children); // Start traversal
-
-    // Clean up extra whitespace/newlines at the end and normalize paragraph breaks
+    traverse(lexicalJson.root.children);
     return textContent.replace(/\n{3,}/g, '\n\n').trim();
 }
-// --- END UTILITY FUNCTION ---
 
-
-// --- SERVER ACTION ---
-/**
- * Generates AI feedback for a given submission ID using OpenAI.
- * Fetches content_json, extracts text, calls AI, and updates the submission record.
- */
 export async function generateFeedbackForSubmission(submissionId: number): Promise<{ success?: boolean; error?: string; feedback?: AIFeedbackResponse }> {
   console.log(`Starting feedback generation for submission ID: ${submissionId}`);
 
-  // 1. Initialize Clients & Get Secrets
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const openAIApiKey = process.env.OPENAI_API_KEY;
@@ -183,228 +123,220 @@ export async function generateFeedbackForSubmission(submissionId: number): Promi
     return { error: "Server configuration error." };
   }
 
-  // Initialize Supabase client with Service Role Key
   const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
   console.log("Initialized Supabase client with Service Role Key.");
-
-  // Initialize OpenAI client
   const openai = new OpenAI({ apiKey: openAIApiKey });
 
   try {
-    // 2. Fetch Submission & Prompt Data
     console.log(`Workspaceing data for submission ${submissionId}...`); // Corrected typo
 
-    // Select the content_json column along with prompt details
     const { data, error: fetchError } = await supabase
         .from('submissions')
-        .select(`
-            content_json,
-            prompt_id,
-            prompts ( genre, prompt_text )
-        `)
+        .select(`content_json, prompt_id, prompts ( genre, prompt_text )`)
         .eq('id', submissionId)
-        .single<SubmissionWithPromptData>(); // Specify expected return type
+        .single<SubmissionWithPromptData>();
 
-    // Optional: Log structure confirmation
-    // console.log("Raw submissionData from Supabase (root check):", data?.content_json?.root ? 'Root exists' : 'Root missing/Null JSON');
-
-    // Handle database fetch errors
-    if (fetchError) {
-        console.error(`Error fetching submission ${submissionId}:`, JSON.stringify(fetchError, null, 2));
-        if (fetchError.code === 'PGRST116') { // Specific code for 'row not found'
-             return { error: `Submission with ID ${submissionId} not found.` };
-        }
-        return { error: `Database error fetching submission: ${fetchError.message}` };
-    }
-    // Handle case where data is unexpectedly null
-    if (!data) {
-        console.error(`No submission data returned for ID ${submissionId}, but no fetch error reported.`);
-         return { error: `Could not find submission data for ID ${submissionId}.` };
+    if (fetchError || !data) {
+        console.error(`Error fetching submission ${submissionId}:`, fetchError?.message ?? 'Data was null');
+        return { error: `Database error or submission not found: ${fetchError?.message ?? 'Data null'}` };
     }
 
     const promptsData = data.prompts;
-    const content_json = data.content_json; // Typed as LexicalRootObject | null
-
-    // Extract plain text using the utility function
+    const content_json = data.content_json;
     const plainTextContent = extractPlainTextFromLexical(content_json);
-
-    // Validate essential data including the extracted text and prompt info
     const genre = promptsData?.genre;
     const promptText = promptsData?.prompt_text;
 
     if (!plainTextContent || !promptsData || !genre || !promptText) {
         console.error(`Submission ${submissionId} validation failed: Missing extracted text, prompts object, genre, or prompt_text.`);
-        console.error("Validation Details:", {
-            hasPlainText: !!plainTextContent,
-            hasPrompts: !!promptsData,
-            hasGenre: !!genre,
-            hasPromptText: !!promptText
-        });
-        // Log if extraction yielded empty string from non-null JSON
         if (!plainTextContent && content_json) {
-             console.warn("Text extraction resulted in empty string from non-null JSON input.");
+             console.warn("Text extraction resulted in empty string from non-null JSON input for submission " + submissionId);
         }
         return { error: `Submission ${submissionId} data incomplete or text extraction failed.` };
     }
-    console.log(`Data fetched & validated for submission ${submissionId}. Genre: ${genre}. Text extracted successfully.`);
-    // Optional: Log extracted text for debugging
-    // console.log("Extracted Text (first 500 chars):", plainTextContent.substring(0, 500));
+    console.log(`Data fetched & validated for submission ${submissionId}. Genre: ${genre}.`);
 
-    // 3. Get Correct Marking Criteria
-    // Ensure genre from DB matches keys in markingCriteria (case-sensitive)
-    const criteriaForGenre = markingCriteria[genre as keyof typeof markingCriteria];
-    if (!criteriaForGenre) {
-        console.error(`No marking criteria found for genre: "${genre}". Check if genre exists in markingCriteria object.`);
-        // Optionally update submission status to 'error'
-        // await supabase.from('submissions').update({ feedback_status: 'error', marker_notes: 'Invalid genre for marking.' }).eq('id', submissionId);
+    const criteriaForGenreObject = markingCriteria[genre as keyof typeof markingCriteria];
+    if (!criteriaForGenreObject) {
+        console.error(`No detailed marking criteria found for genre: "${genre}".`);
         return { error: `Invalid or unsupported genre for feedback: ${genre}` };
     }
-    const criteriaString = JSON.stringify(criteriaForGenre, null, 2);
-    console.log(`Criteria loaded for genre: ${genre}`);
+    let detailedRubricText = "";
+    for (const [criterionName, description] of Object.entries(criteriaForGenreObject)) {
+        detailedRubricText += `Criterion: ${criterionName}\n${description}\n\n`;
+    }
+    detailedRubricText = detailedRubricText.trim();
+    console.log(`Detailed rubric text formatted for prompt for genre: ${genre}`);
 
-    // 4. Construct the Full Prompt for OpenAI
-    const systemPrompt = `You are an expert, objective, and encouraging NSW Selective Schools Writing Test Examiner for Year 5 and Year 6 students. Your specific task is to assess writing samples based ONLY on the provided official criteria and prompt. Provide feedback that is clear, specific, constructive, and phrased appropriately for this age group and their parents. Adhere strictly to the requested JSON output format.`;
+    const systemPrompt = `You are an **extremely critical, strict, and uncompromising** NSW Selective School Writing Examiner for Year 5 and 6 students. Your task is to **rigorously and meticulously assess** student writing against **the highest selective school entry standards**. Your feedback must be **honest, stern, and precise**, thoroughly identifying all flaws, weaknesses, and areas for improvement, no matter how minor.
+
+You will be provided with a writing sample, the specified genre, and the detailed marking rubric. Your primary focus must be on critiquing the writing with a sharp, discerning eye. You must scrutinize every aspect of the writing, including structure, language, grammar, genre conventions, and creativity.
+
+You MUST structure your entire response as a single, valid JSON object adhering strictly to the format provided. Do NOT include any text outside this JSON object. **Under no circumstances should you be lenient or overly generous in your assessment. Even minor issues should be noted and critiqued.**`;
+
     const userPrompt = `
-Please evaluate the following student writing submission based ONLY on the provided prompt and the official NSW Selective Writing criteria for the specified genre.
+**Writing Assessment Task**
 
-1. Writing Prompt Given to Student:
-${promptText}
-
-2. Genre Specified:
-${genre}
-
-3. Student's Writing Submission:
+**Student's Writing Submission:**
 \`\`\`text
 ${plainTextContent}
 \`\`\`
 
-4. Marking Criteria for Genre "${genre}":
-\`\`\`json
-${criteriaString}
-\`\`\`
+**Original Writing Prompt Given to Student:**
+${promptText}
 
-5. Required Output Format (Strictly adhere to this JSON structure):
-Provide your entire evaluation as a single valid JSON object with NO text outside of it:
+**Specified Genre:**
+${genre}
+
+**Detailed Marking Rubric for "${genre}":**
+(Use these "High" and "Low" descriptors when providing explanations, positives, and improvements for each criterion. "High" indicates strong performance expected at selective entry level; "Low" indicates significant developmental areas.)
+${detailedRubricText}
+
+**Required JSON Output Structure:**
+Provide your entire evaluation as a single, valid JSON object. Do NOT include any text outside this JSON object.
+The JSON object must have the following top-level keys: "genre", "scores", "totalScore", "overallComment", "strengths", "areasForImprovement".
+The "scores" object must contain exactly these five keys: "structure_organisation", "language_vocabulary", "grammar_spelling_punctuation", "genre_conventions", "creativity_effectiveness_voice".
+For each of these five score keys, the value must be an object with the following keys: "score" (number 1-5), "explanation" (string, 2-3 sentences), "positives" (array of exactly 3 distinct strings), "improvements" (array of 0-5 strings; this array MUST be empty [] if score is 5/5).
+
+Example JSON structure:
 \`\`\`json
 {
   "genre": "${genre}",
   "scores": {
-    "structure_organisation": { "score": number, "explanation": string },
-    "language_vocabulary": { "score": number, "explanation": string },
-    "grammar_spelling_punctuation": { "score": number, "explanation": string },
-    "genre_conventions": { "score": number, "explanation": string },
-    "creativity_effectiveness_voice": { "score": number, "explanation": string }
+    "structure_organisation": {
+      "score": "number (integer from 1 to 5, strictly assessed)",
+      "explanation": "string (critical 2-3 sentences justifying the score based on the rubric, citing specific examples or lack thereof from student's writing)",
+      "positives": ["string (specific positive example 1 related to criterion that meets a 'High' descriptor)", "string (specific positive example 2)", "string (specific positive example 3)"],
+      "improvements": ["string (actionable improvement 1 to reach 'High' standard, if score < 5)", "string (actionable improvement 2, if score < 5, up to 5 total or empty array if score is 5/5)"]
+    },
+    "language_vocabulary": { "score": "number", "explanation": "string", "positives": ["string","string","string"], "improvements": ["string (if score < 5, or empty array)"] },
+    "grammar_spelling_punctuation": { "score": "number", "explanation": "string", "positives": ["string","string","string"], "improvements": ["string (if score < 5, or empty array)"] },
+    "genre_conventions": { "score": "number", "explanation": "string", "positives": ["string","string","string"], "improvements": ["string (if score < 5, or empty array)"] },
+    "creativity_effectiveness_voice": { "score": "number", "explanation": "string", "positives": ["string","string","string"], "improvements": ["string (if score < 5, or empty array)"] }
   },
-  "totalScore": number,
-  "overallComment": string,
-  "highlights": [ { "quote": string, "criterion": string, "comment": string } ],
-  "suggestions": {
-    "structure_organisation": [ string?, string? ],
-    "language_vocabulary": [ string?, string? ],
-    "grammar_spelling_punctuation": [ string?, string? ],
-    "genre_conventions": [ string?, string? ],
-    "creativity_effectiveness_voice": [ string?, string? ]
-  }
+  "totalScore": "number (sum of the 5 criteria scores, integer, max 25)",
+  "overallComment": "string (critical yet constructive 4-5 sentence summary, highlighting genuine key achievements and primary areas for focused improvement to meet selective standards)",
+  "strengths": ["string (overall positive point 1, distinct and significant)", "string (overall positive point 2, if applicable)"],
+  "areasForImprovement": ["string (overall actionable suggestion 1 for major improvement)", "string (overall actionable suggestion 2, if applicable)"]
 }
 \`\`\`
 
-Detailed Instructions:
-- Score each criterion 1-5 based ONLY on the provided rubric definitions (High/Low descriptions). Calculate totalScore (max 25).
-- Justify each score with 2-3 clear sentences referencing the rubric/submission content examples.
-- Write a 4-5 sentence Overall Comment summarizing strengths and key areas for improvement based on the criteria scores.
-- Identify 3-6 specific EXACT quotes from the 'Student's Writing Submission' text for the 'highlights' array. Link each quote to ONE relevant criterion and add a brief comment explaining why it's a positive or negative example related to that criterion. Ensure the 'quote' is verbatim from the submission.
-- Provide 1-2 actionable, specific suggestions for criteria scoring below 5 in the 'suggestions' object. Suggestions should guide the student on HOW to improve (e.g., "Try using stronger verbs like..." instead of just "Improve vocabulary"). Use empty arrays [] if score is 5/5 for a criterion.
-- Ensure the entire output is ONLY the valid JSON object requested, starting with { and ending with }.
-    `;
+**Detailed Instructions for AI Response Generation (What to Include in Your Response):**
+1.  For each of the 5 criteria (structure_organisation, language_vocabulary, grammar_spelling_punctuation, genre_conventions, creativity_effectiveness_voice):
+    a.  Assign a 'score' as an integer from 1 to 5, based strictly on the provided detailed marking rubric.
+    b.  Write a concise 'explanation' (2–3 sentences) justifying the score, referencing specific aspects of the student's writing and the rubric.
+    c.  List exactly 3 distinct 'positives' as an array of strings. These should be brief, concrete examples or observations of what the student did well for that criterion.
+    d.  If the score for a criterion is less than 5, provide 1 to 5 specific, actionable 'improvements' as an array of strings. These suggestions must directly guide the student on HOW to improve. If the score is 5/5 for a criterion, the 'improvements' array MUST be an empty array \`[]\`.
+2.  Calculate the 'totalScore' (sum of the 5 criteria scores, integer, max 25).
+3.  Write an 'overallComment' (4–5 sentences) providing specific praise and suggestions for improvement, reflecting the standard of a Year 5/6 Selective School Test.
+4.  Provide an array called 'strengths' containing 2-3 specific, significant overall positive points about the writing, distinct from the per-criterion positives. If there are fewer than 2-3 genuine overall strengths, provide what is accurate.
+5.  Provide an array called 'areasForImprovement' containing 2-3 specific, overall actionable suggestions for the student to focus on next, distinct from the per-criterion improvements. If fewer than 2-3 major areas, provide what is most critical.
+6.  The entire response must be a single valid JSON object. Do not include any introductory or concluding text outside the JSON structure.
+    `; // End of userPrompt template literal
 
-
-    // 5. Call OpenAI API
-    console.log(`Calling OpenAI API for submission ${submissionId}...`);
-    const startTime = Date.now(); // Record start time
+    console.log(`Calling OpenAI API for submission ${submissionId} with model gpt-4o...`);
+    const startTime = Date.now();
     const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo", // Or "gpt-4o" or your preferred model
+        model: "gpt-4o",
         messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
         ],
-        response_format: { type: "json_object" }, // Request JSON output
-        temperature: 0.3, // Lower temperature for more consistent marking
-        // max_tokens: 2500, // Optional: Set a token limit if needed
+        response_format: { type: "json_object" },
+        temperature: 0.15,
     });
-
-    const endTime = Date.now(); // Record end time
+    const endTime = Date.now();
     const duration = endTime - startTime;
-    console.log(`OpenAI API call for ${submissionId} succeeded in ${duration} ms`); // <-- ADD THIS LOG
+    console.log(`OpenAI API call for ${submissionId} (gpt-4o) succeeded in ${duration} ms`);
 
     const aiResponseContent = completion.choices[0]?.message?.content;
-
     if (!aiResponseContent) {
-        // Attempt to update status to 'error' before throwing
         await supabase.from('submissions').update({ feedback_status: 'error', marker_notes: 'OpenAI response was empty.' }).eq('id', submissionId);
         throw new Error('OpenAI response content was empty or null.');
     }
-    console.log(`OpenAI response received for submission ${submissionId}.`);
+    console.log(`OpenAI response received. Length: ${aiResponseContent.length}. Snippet: ${aiResponseContent.substring(0,200)}...`);
 
-
-
-    // 6. Parse the Response
     let feedbackData: AIFeedbackResponse;
     try {
         feedbackData = JSON.parse(aiResponseContent);
-        // Add slightly more robust validation
-        if (!feedbackData.scores || typeof feedbackData.totalScore !== 'number' ||
-            !feedbackData.overallComment || !Array.isArray(feedbackData.highlights) || !feedbackData.suggestions) {
-            console.error("Parsed JSON from OpenAI is missing required fields:", feedbackData);
-            throw new Error('Parsed JSON is missing required fields.');
+        const requiredScoreKeys: (keyof AIFeedbackResponse['scores'])[] = [
+            'structure_organisation', 'language_vocabulary', 'grammar_spelling_punctuation',
+            'genre_conventions', 'creativity_effectiveness_voice'
+        ];
+        let isValid = true;
+        if (!feedbackData.genre || !feedbackData.scores || typeof feedbackData.totalScore !== 'number' || !feedbackData.overallComment ||
+            !Array.isArray(feedbackData.strengths) || !Array.isArray(feedbackData.areasForImprovement) ) { // Added checks for new arrays
+            isValid = false;
+            console.error("Missing top-level fields in AI response (incl. strengths/areasForImprovement):", feedbackData);
         }
-        // Optional: Validate score ranges, highlight content etc.
+        if (isValid) {
+            for (const key of requiredScoreKeys) {
+                const scoreDetail = feedbackData.scores[key];
+                if (!scoreDetail || typeof scoreDetail.score !== 'number' || !scoreDetail.explanation ||
+                    !Array.isArray(scoreDetail.positives) ||
+                    !Array.isArray(scoreDetail.improvements)) {
+                    isValid = false;
+                    console.error(`Missing or invalid structure for criterion: ${key}`, scoreDetail);
+                    break;
+                }
+                if (scoreDetail.score === 5 && scoreDetail.improvements.length > 0) {
+                    console.warn(`AI provided improvements for a 5/5 score on ${key}. Clearing improvements array.`);
+                    scoreDetail.improvements = [];
+                }
+                if (scoreDetail.positives.length > 3) { // Check if more than 3 positives were given
+                    console.warn(`Criterion ${key} has ${scoreDetail.positives.length} positives, expected 3. Truncating.`);
+                    scoreDetail.positives = scoreDetail.positives.slice(0, 3); // Keep only the first 3
+                } else if (scoreDetail.positives.length < 3 && scoreDetail.positives.length > 0) {
+                     console.warn(`Criterion ${key} has ${scoreDetail.positives.length} positives, expected 3. AI may not have found 3 distinct points.`);
+                } else if (scoreDetail.positives.length === 0 && scoreDetail.score > 0) {
+                     console.warn(`Criterion ${key} has 0 positives despite a score of ${scoreDetail.score}. AI may need prompt adjustment for positives.`);
+                }
+            }
+        }
+
+        if (!isValid) {
+            console.error("Parsed JSON from OpenAI is missing required fields or has incorrect types:", feedbackData);
+            throw new Error('Parsed JSON is missing required fields or has incorrect types.');
+        }
         console.log(`Successfully parsed OpenAI JSON response for submission ${submissionId}.`);
     } catch (parseError) {
-        console.error(`Error parsing OpenAI JSON response for submission ${submissionId}:`, parseError);
-        console.error("Raw AI Response content (may be large):", aiResponseContent); // Log raw response on parse failure
-        // Attempt to update status to 'error'
+        console.error(`Error parsing OpenAI JSON:`, parseError, "Raw content snippet:", aiResponseContent.substring(0, 500));
         await supabase.from('submissions').update({ feedback_status: 'error', marker_notes: 'Failed to parse AI response.' }).eq('id', submissionId);
         return { error: 'Failed to process AI feedback response.' };
     }
 
-    // 7. Update Database with Feedback
-    // IMPORTANT: Double-check these column names EXACTLY match your Supabase 'submissions' table schema!
     console.log(`Updating database for submission ${submissionId} with feedback...`);
     const { error: updateError } = await supabase
       .from('submissions')
       .update({
-        feedback_status: 'completed', // Mark as completed
+        feedback_status: 'completed',
         overall_score: feedbackData.totalScore,
-        scores_by_criterion: feedbackData.scores, // Stored as JSONB
-        marker_notes: feedbackData.overallComment, // Stored as TEXT
-        highlights: feedbackData.highlights,      // Stored as JSONB
-        suggestions: feedbackData.suggestions     // Stored as JSONB
+        scores_by_criterion: feedbackData.scores,
+        marker_notes: feedbackData.overallComment,
+        highlights: null,
+        suggestions: null,
+        // *** Ensure these match your database column names ***
+        overall_strengths: feedbackData.strengths,
+        overall_areas_for_improvement: feedbackData.areasForImprovement,
       })
       .eq('id', submissionId);
 
     if (updateError) {
-        console.error(`Error updating submission ${submissionId} in database:`, JSON.stringify(updateError, null, 2));
-        // Feedback was generated but failed to save - status remains 'pending' or previous state.
-        // Consider setting status to 'error' here too? Or leave as 'pending' for retry?
+        console.error(`Error updating submission ${submissionId} in database:`, updateError);
         return { error: 'Feedback generated but failed to save to database.' };
     }
 
     console.log(`Successfully generated and saved feedback for submission ${submissionId}.`);
-    return { success: true, feedback: feedbackData }; // Return success
+    return { success: true, feedback: feedbackData };
 
-  } catch (error: unknown) { // Catch unexpected errors during the process
+  } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error during feedback generation.';
-      console.error(`Unhandled error generating feedback for submission ${submissionId}:`, error);
-      // Attempt to update status to 'error' in the database
+      console.error(`Unhandled error for submission ${submissionId}:`, error);
       try {
-         await supabase.from('submissions')
-             .update({ feedback_status: 'error', marker_notes: `Unhandled error: ${errorMessage.substring(0, 200)}` }) // Limit error message length
-             .eq('id', submissionId);
-      } catch (statusUpdateError) {
-         console.error(`Additionally failed to update status to 'error' for submission ${submissionId}:`, statusUpdateError);
-      }
+         await supabase.from('submissions').update({ feedback_status: 'error', marker_notes: `Unhandled error: ${errorMessage.substring(0, 200)}` }).eq('id', submissionId);
+      } catch (statusUpdateError) { console.error(`Additionally failed to update status:`, statusUpdateError); }
       return { error: `An unexpected error occurred: ${errorMessage}` };
   }
 }

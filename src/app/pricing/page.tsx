@@ -1,44 +1,59 @@
-// src/app/pricing/page.tsx (Simplified Client Component)
-"use client"; // Keep as client component to use SubscribeButton which likely needs client hooks
+// src/app/pricing/page.tsx (Simplified Client Component with new card style)
+"use client";
 
-import SubscribeButton from '@/components/SubscribeButton'; // Import the button
+import SubscribeButton from '@/components/SubscribeButton'; // Ensure this path is correct
 import Link from 'next/link';
-// No Supabase client or auth hooks needed here anymore
 
 export default function PricingPage() {
-
-  // No need for loading state or useEffect auth check here anymore
-  // We assume user is logged in if they reach this page via redirect logic
+  // This page is now primarily for users who are likely logged in but need to subscribe.
+  // The access check and redirect TO this page would happen in server components like /practice or /dashboard.
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-slate-50 px-4 py-12">
-       {/* Content container */}
-       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg border border-gray-200">
-          {/* Ensure this heading has dark text */}
-          <h1 className="text-4xl font-bold text-center mb-6 text-gray-800">Subscription Required</h1>
-          <div className="text-center">
-               {/* Ensure this heading has dark text */}
-              <h2 className="text-2xl font-semibold mb-4 text-gray-700">Unlock Full Access</h2>
-               {/* Ensure this paragraph has dark text */}
-              <p className="text-lg text-gray-600 mb-6">
-                  To access unlimited writing practice sessions and all features, please subscribe to our simple plan.
-              </p>
-              <div className="mb-8">
-                  <span className="text-4xl font-extrabold text-indigo-600">$15</span>
-                  <span className="text-xl font-medium text-gray-500"> AUD / month</span>
-              </div>
-              {/* Render the Subscribe Button */}
-              <SubscribeButton />
-              <p className="text-xs text-gray-400 mt-4">
-                  You can manage your subscription anytime.
-              </p>
-              <div className="mt-6">
-                  <Link href="/dashboard" className="text-sm text-indigo-500 hover:underline">
-                      Maybe later, back to Dashboard
-                  </Link>
-              </div>
+    <div className="flex flex-col justify-center items-center min-h-screen bg-slate-50 px-4 py-12">
+      {/* Optional: You could add your "Selective Writing" brand text here if desired, like on auth pages */}
+      {/* <div className="text-center mb-8">
+        <Link href="/" className="text-3xl font-bold text-gray-800 hover:text-gray-600 transition-colors">
+          Selective Writing
+        </Link>
+      </div> */}
+
+      {/* Content container - Applying the prominent card style */}
+      <div className="w-full max-w-md bg-white p-6 sm:p-8 md:p-10 rounded-xl shadow-2xl border-2 border-gray-800">
+        <div className="text-center space-y-6"> {/* Added space-y-6 for better spacing inside */}
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900"> {/* Darker text */}
+            Subscription Required
+          </h1>
+          
+          <div>
+            <h2 className="text-xl sm:text-2xl font-semibold mb-2 text-gray-800"> {/* Darker text */}
+              Unlock Full Access
+            </h2>
+            <p className="text-md sm:text-lg text-gray-600 mb-6">
+              To access unlimited writing practice sessions and all features, please subscribe to our simple plan.
+            </p>
           </div>
-       </div>
+
+          <div className="my-6"> {/* Adjusted margin */}
+            <span className="text-4xl sm:text-5xl font-extrabold text-gray-900">$15</span> {/* Darker price */}
+            <span className="text-lg sm:text-xl font-medium text-gray-500"> AUD / month</span>
+          </div>
+
+          {/* Render the Subscribe Button */}
+          <div className="mt-2"> {/* Ensure button has some space */}
+            <SubscribeButton />
+          </div>
+
+          <p className="text-xs text-gray-500 mt-3"> {/* Slightly less muted text */}
+            You can manage or cancel your subscription anytime.
+          </p>
+          
+          <div className="mt-6 pt-4 border-t border-gray-200"> {/* Added separator */}
+            <Link href="/dashboard" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
+              Maybe later, back to Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

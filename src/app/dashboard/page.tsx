@@ -1,170 +1,175 @@
-// src/app/dashboard/page.tsx (With Conditional Access Button & createClient FIX)
+// src/app/dashboard/page.tsx
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server'; // Use the modified server client
-import Link from 'next/link';
-import LogoutButton from '@/components/LogoutButton';
-import { NotebookPen, CalendarDays, Eye, ArrowRight, CreditCard } from 'lucide-react';
-import { checkUserAccessStatus } from '@/lib/accessControl'; // Import the check function
+import { createClient } from '@/lib/supabase/server';
+import { checkUserAccessStatus } from '@/lib/accessControl';
 
-// Interface for fetched submission data
-interface SubmissionWithPrompt {
-  id: number;
-  created_at: string;
-  prompt_id: number;
-  prompts: { // Nested prompt data
+// Import Dashboard UI Components
+import { WelcomeHeader } from '@/components/dashboard/WelcomeHeader';
+import { OverviewStats } from '@/components/dashboard/OverviewStats';
+// SubmissionItemData is now primarily defined and exported from SubmissionListItem.tsx,
+// RecentSubmissionsList imports it from there.
+// So, dashboard/page.tsx doesn't strictly need to import SubmissionItemData if it's only creating data
+// that conforms to the structure RecentSubmissionsList expects for its initialSubmissions prop.
+// However, for clarity during data transformation, we can use a local type or import it.
+import { RecentSubmissionsList } from '@/components/dashboard/RecentSubmissionsList';
+import type { SubmissionItemData } from '@/components/dashboard/SubmissionListItem'; // Assuming this path
+
+// Interface for the raw data fetched from Supabase for each submission item
+interface RawSupabaseSubmission {
     id: number;
-    genre: string;
-    prompt_text: string;
-  } | null; // Prompt might be null if deleted? Or handle join failure
-  user_id: string; // Included user_id from select
+    created_at: string;
+    prompts: { genre: string; prompt_text: string; } | { genre: string; prompt_text: string; }[] | null;
+    overall_score?: number | null;
+    // scores_by_criterion is not directly used for the list display anymore,
+    // but it's good to keep in the select if you might use it for other calculations
+    // or if your overall_score depends on it.
+    scores_by_criterion?: Record<string, number | string> | null;
 }
 
-
 export default async function DashboardPage() {
-    // --- Read Environment Variables ---
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // --- Check if variables exist ---
-    if (!supabaseUrl || !supabaseKey) {
-      console.error("Dashboard Page Error: Supabase URL or Anon Key missing!");
-      // Render an error message or handle appropriately
-      return (
-          <div className="container mx-auto p-6 text-center text-red-500">
-              Server configuration error. Cannot load dashboard.
-          </div>
-      );
-    }
-
-    // --- Create Client by PASSING variables (without await) ---
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // 1. Check user session
-    console.log("Dashboard: Checking user session...");
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      console.log("Dashboard: No user session found, redirecting to login.");
-      redirect('/login');
-    }
-    console.log(`Dashboard: User ${user.id} found.`);
-
-    // 2. Check User Access Status (Subscription/Permissions)
-    console.log(`Dashboard: Checking access status for user ${user.id}...`);
-    const hasAccess = await checkUserAccessStatus(user.id); // Assuming this function exists and works
-    console.log(`Dashboard: User has access: ${hasAccess}`);
-
-    // 3. Fetch user's submissions (using the client created above)
-    console.log(`Dashboard: Fetching submissions for user ${user.id}...`);
-    const { data: submissions, error: fetchError } = await supabase
-        .from('submissions')
-        .select(`
-            id, created_at, prompt_id, user_id,
-            prompts ( id, genre, prompt_text )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-    if (fetchError) {
-        console.error("Dashboard: Error fetching submissions:", fetchError.message);
-        // We'll still render the page but show an error for the submissions section
-    }
-
-    // Type cast or default to empty array
-    const typedSubmissions = (submissions || []) as unknown as SubmissionWithPrompt[];
-    console.log(`Dashboard: Found ${typedSubmissions.length} submissions.`);
-
-    // --- Define Button Text & Link based on Access ---
-    const practiceLinkTarget = hasAccess ? "/practice" : "/pricing";
-    const practiceButtonText = hasAccess ? "Start New Writing Practice" : "Subscribe to Practice";
-    const PracticeButtonIcon = hasAccess ? ArrowRight : CreditCard;
-    // --- End Button Logic ---
-
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Dashboard Page Error: Supabase URL or Anon Key missing!");
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 p-4 sm:p-8">
-            <div className="container mx-auto max-w-5xl">
-
-                {/* Header section */}
-                <div className="flex flex-col sm:flex-row justify-between items-center mb-8 sm:mb-12">
-                    <div>
-                        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">Dashboard</h1>
-                        <p className="text-lg text-gray-600">
-                          Welcome back, {user.email}!
-                        </p>
-                    </div>
-                    <div className="flex items-center space-x-4 mt-4 sm:mt-0">
-                        {/* Conditional Start/Subscribe Button */}
-                        <Link
-                            href={practiceLinkTarget}
-                            className={`inline-flex items-center px-6 py-2.5 text-white font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-150 ease-in-out ${
-                                hasAccess
-                                ? 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500' // Style for access
-                                : 'bg-orange-500 hover:bg-orange-600 focus:ring-orange-400' // Style for subscribe prompt
-                            }`}
-                        >
-                            {practiceButtonText}
-                            <PracticeButtonIcon className="ml-2 h-5 w-5" />
-                        </Link>
-                        <LogoutButton />
-                    </div>
-                </div>
-
-                {/* Submissions Section */}
-                <div className="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-100">
-                    <h2 className="text-2xl font-semibold mb-6 text-gray-800">Your Past Submissions</h2>
-                    {fetchError && (
-                         <p className="text-red-500 bg-red-50 p-4 rounded border border-red-200 text-center">Could not load submissions: {fetchError.message}</p>
-                    )}
-                    {!fetchError && typedSubmissions.length === 0 && (
-                        // Empty state (keep as is)
-                        <div className="text-center py-10 px-6 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-                           <NotebookPen className="mx-auto h-12 w-12 text-gray-400" strokeWidth={1}/>
-                           <h3 className="mt-2 text-lg font-medium text-gray-900">No Submissions Yet</h3>
-                           <p className="mt-1 text-sm text-gray-500">Start a new writing practice session to see your submissions here.</p>
-                           <div className="mt-6">
-                               <Link
-                                   href={practiceLinkTarget}
-                                   className={`inline-flex items-center px-4 py-2 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-150 ease-in-out text-sm ${
-                                       hasAccess
-                                       ? 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500'
-                                       : 'bg-orange-500 hover:bg-orange-600 focus:ring-orange-400'
-                                   }`}
-                                >
-                                   {hasAccess ? 'Start Practice' : 'Subscribe Now'}
-                                   <PracticeButtonIcon className="ml-1.5 h-4 w-4" />
-                               </Link>
-                           </div>
-                       </div>
-                    )}
-                    {!fetchError && typedSubmissions.length > 0 && (
-                        // Grid layout for submission cards (keep as is)
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {typedSubmissions.map((submission) => (
-                                <Link key={submission.id} href={`/submission/${submission.id}`} className="block group">
-                                    <div className="border border-slate-200 bg-gradient-to-br from-white to-slate-50 rounded-lg p-5 shadow-md hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ease-in-out cursor-pointer h-full flex flex-col">
-                                        {/* Card content */}
-                                        <div className="flex justify-between items-start mb-3">
-                                            <span className="inline-flex items-center px-3 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                                                <NotebookPen className="mr-1.5 h-4 w-4" strokeWidth={2}/>
-                                                {submission.prompts?.genre || 'Unknown Genre'}
-                                            </span>
-                                            <span className="flex items-center text-xs text-gray-500">
-                                                <CalendarDays className="mr-1 h-4 w-4" strokeWidth={2}/>
-                                                {new Date(submission.created_at).toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' })}
-                                            </span>
-                                        </div>
-                                        <p className="text-gray-700 text-sm line-clamp-3 flex-grow mb-3">
-                                           {submission.prompts?.prompt_text || 'Prompt details unavailable.'}
-                                        </p>
-                                        <div className="mt-auto text-right text-sm font-medium text-indigo-600 group-hover:underline flex items-center justify-end">
-                                            View Details <Eye className="ml-1 h-4 w-4" />
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
+      <div className="container mx-auto p-6 text-center text-red-500">
+        Server configuration error. Cannot load dashboard.
+      </div>
     );
+  }
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect('/login');
+  }
+
+  let userNameForWelcome = user.email?.split('@')[0]; // Default to part of email
+  try {
+    const { data: userProfileData } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+    if (userProfileData && userProfileData.full_name) {
+      userNameForWelcome = userProfileData.full_name;
+    }
+  } catch (profileError) {
+    console.error("Error fetching user profile for name:", profileError);
+  }
+
+  // --- Fetch initial submissions AND total count for the list ---
+  let submissionFetchErrorMsg: string | null = null;
+  const initialItemsPerPage = 10; // How many to load initially
+  let initialTotalCount = 0;
+
+  // Fetch initial submissions with total count based on default filters (none in this case, just user's scored submissions)
+  const { data: rawInitialSubmissions, error: fetchError, count: rawInitialTotalCount } = await supabase
+    .from('submissions')
+    .select(`
+        id,
+        created_at,
+        prompts ( genre, prompt_text ),
+        overall_score
+    `, { count: 'exact' }) // Get total count matching these initial criteria
+    .eq('user_id', user.id)
+    .not('overall_score', 'is', null) // Consider only scored submissions for initial display and count
+    .order('created_at', { ascending: false }) // Default sort for initial load
+    .limit(initialItemsPerPage);
+
+  if (fetchError) {
+    console.error("Dashboard: Error fetching initial submissions:", fetchError.message);
+    submissionFetchErrorMsg = `Could not load recent submissions: ${fetchError.message}`;
+  } else {
+    initialTotalCount = rawInitialTotalCount || 0;
+  }
+
+  const initialSubmissionsForList: SubmissionItemData[] = (rawInitialSubmissions || []).map((sub: RawSupabaseSubmission) => {
+    const currentPromptData = Array.isArray(sub.prompts) ? sub.prompts[0] : sub.prompts;
+    const maxPossibleScore = 25; // Ensure this matches your scoring system
+    const overallScoreNum = typeof sub.overall_score === 'number' ? sub.overall_score : 0;
+    const overallScorePercentage = maxPossibleScore > 0 ? Math.round((overallScoreNum / maxPossibleScore) * 100) : 0;
+
+    return {
+      id: sub.id,
+      genre: currentPromptData?.genre || 'N/A',
+      promptTitle: currentPromptData?.prompt_text || 'Untitled Prompt',
+      date: new Date(sub.created_at).toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' }),
+      overallScorePercentage: overallScorePercentage,
+      viewLink: `/submission/${sub.id}`,
+    };
+  });
+
+  // --- Fetch data for Overview Stats Cards ---
+  // 1. Total Practices (already fetched as initialTotalCount if filters were minimal, or fetch separately for all-time total)
+  // For simplicity, if initialTotalCount represents all scored submissions, we can use it.
+  // Or, for a true "all practices ever" count (even unscored):
+  const { count: allTimeTotalPracticesCount, error: countError } = await supabase
+    .from('submissions')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id);
+  if (countError) console.error("Error fetching all-time total practices count:", countError.message);
+  const actualTotalPractices = (allTimeTotalPracticesCount ?? 0).toString();
+
+  // 2. Average Score (from all scored submissions)
+  let overallAverageScorePercentageString = "N/A";
+  const { data: allScoresData, error: allScoresError } = await supabase
+    .from('submissions')
+    .select('overall_score')
+    .eq('user_id', user.id)
+    .not('overall_score', 'is', null);
+
+  if (allScoresError) {
+    console.error("Error fetching all scores for average:", allScoresError.message);
+  } else if (allScoresData && allScoresData.length > 0) {
+    const validScores = allScoresData.map(s => s.overall_score).filter(score => typeof score === 'number') as number[];
+    if (validScores.length > 0) {
+      const sumOfScores = validScores.reduce((acc, score) => acc + score, 0);
+      const averageRawScore = sumOfScores / validScores.length;
+      const maxPossibleScore = 25; // Ensure this matches your scoring system
+      overallAverageScorePercentageString = Math.round((averageRawScore / maxPossibleScore) * 100) + "%";
+    }
+  }
+
+  // 3. Words Written (Placeholder - to be replaced or logic implemented)
+  const wordsWrittenPlaceholder = "TBD";
+
+  const overviewStatsData = [
+    { id: 'practices', label: "Total Practices", value: actualTotalPractices, subtext: "Great progress!" },
+    { id: 'avgScore', label: "Average Score", value: overallAverageScorePercentageString, subtext: "Excellent work!" },
+    { id: 'wordsWritten', label: "Words Written (TBD)", value: wordsWrittenPlaceholder, subtext: "Metric to be updated" },
+  ];
+
+  const hasAccess = await checkUserAccessStatus(user.id);
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
+        <WelcomeHeader userName={userNameForWelcome} />
+        <OverviewStats stats={overviewStatsData} />
+
+        <div className="mt-6 md:mt-8">
+          {submissionFetchErrorMsg ? (
+            <div className="bg-white p-6 rounded-xl shadow-lg text-red-500 text-center"> {/* Seamless card style for error */}
+              {submissionFetchErrorMsg}
+            </div>
+          ) : (
+            <RecentSubmissionsList
+              initialSubmissions={initialSubmissionsForList}
+              initialTotalCount={initialTotalCount} // Pass the total count for initial filter set
+              userId={user.id}
+              hasAccess={hasAccess}
+              practiceLinkTarget={hasAccess ? "/practice" : "/pricing"}
+              itemsPerPage={5} // How many to load per "load more" click via API
+            />
+          )}
+        </div>
+
+        {/* Performance Statistics Section is REMOVED as per your request */}
+
+      </div>
+      {/* A global footer for authenticated pages would typically go in an AuthenticatedLayout.tsx */}
+    </div>
+  );
 }

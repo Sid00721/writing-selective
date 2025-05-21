@@ -1,71 +1,79 @@
-// src/lib/accessControl.ts (WITH createClient FIX)
-import { createClient } from '@/lib/supabase/server'; // Use the modified server client
+// src/lib/accessControl.ts
+import { createClient } from '@/lib/supabase/server';
 
 export async function checkUserAccessStatus(userId: string | undefined): Promise<boolean> {
-  // If no user ID is provided, deny access immediately
-  if (!userId) {
-    console.warn("Access Check Warning: No userId provided.");
-    return false;
-  }
+    if (!userId) {
+        console.warn("Access Check Warning: No userId provided.");
+        return false;
+    }
 
-  // --- Read Environment Variables ---
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // --- Check if variables exist ---
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Access Check Error: Supabase URL or Anon Key missing in environment!");
-    // Cannot determine access if client can't be created
-    return false;
-  }
+    if (!supabaseUrl || !supabaseKey) {
+        console.error("Access Check Error: Supabase URL or Anon Key missing in environment!");
+        return false;
+    }
 
-  // --- Create Client by PASSING variables (without await) ---
-  const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Fetch relevant fields from the user's profile
-  console.log(`Access Check: Fetching profile for user ${userId}...`);
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('is_admin, has_free_access, subscription_status, current_period_end')
-    .eq('id', userId)
-    .single();
+    console.log(`Access Check: Fetching profile for user ${userId}...`);
+    const { data: profile, error } = await supabase
+        .from('profiles')
+        //MODIFIED: Added trial_ends_at to the select query
+        .select('is_admin, has_free_access, subscription_status, current_period_end, trial_ends_at')
+        .eq('id', userId)
+        .single();
 
-  // Handle profile fetch errors (excluding 'row not found')
-  if (error && error.code !== 'PGRST116') { // PGRST116 = row not found
-    console.error(`Access Check Error: Failed fetching profile for ${userId}:`, error.message);
-    return false; // Fail secure on unexpected database error
-  }
+    if (error && error.code !== 'PGRST116') {
+        console.error(`Access Check Error: Failed fetching profile for ${userId}:`, error.message);
+        return false;
+    }
 
-  // Handle case where profile doesn't exist
-  if (!profile) {
-    console.warn(`Access Check Warning: No profile found for user ${userId}. Denying access.`);
-    return false; // Deny access if no profile exists for the logged-in user
-  }
-  console.log(`Access Check: Profile fetched for ${userId}:`, profile);
+    if (!profile) {
+        console.warn(`Access Check Warning: No profile found for user ${userId}. Denying access.`);
+        return false;
+    }
+    console.log(`Access Check: Profile fetched for ${userId}:`, profile);
 
+    // --- Access Logic ---
 
-  // --- Access Logic ---
+    // 1. Check Admin or Free Access Flags (Highest Priority)
+    if (profile.is_admin || profile.has_free_access) {
+        console.log(`Access Check: User ${userId} granted access (Admin=${profile.is_admin}, Free=${profile.has_free_access}).`);
+        return true;
+    }
 
-  // 1. Check Admin or Free Access Flags (Highest Priority)
-  if (profile.is_admin || profile.has_free_access) {
-    console.log(`Access Check: User ${userId} granted access (Admin=${profile.is_admin}, Free=${profile.has_free_access}).`);
-    return true;
-  }
+    // 2. Check for our custom 30-day trial
+    // This uses the 'trial' status we set with the trigger and the 'trial_ends_at' field.
+    if (profile.subscription_status === 'trial' && profile.trial_ends_at) {
+        const now = new Date();
+        const trialEndDate = new Date(profile.trial_ends_at);
+        if (now <= trialEndDate) {
+            console.log(`Access Check: User ${userId} granted access (Active custom trial until ${profile.trial_ends_at}).`);
+            return true; // User is on an active custom trial
+        } else {
+            console.log(`Access Check: User ${userId} custom trial expired on ${profile.trial_ends_at}.`);
+            // Optionally, here you could trigger an update to set subscription_status to 'trial_expired'
+            // but for now, just denying access is sufficient for this check.
+        }
+    }
 
-  // 2. Check Active Subscription Status
-  // Stripe subscription statuses: active, past_due, unpaid, canceled, incomplete, incomplete_expired, trialing
-  // Consider 'active' and 'trialing' as granting access.
-  const isActive = profile.subscription_status === 'active' || profile.subscription_status === 'trialing';
+    // 3. Check Active Stripe-like Subscription Status (if not on custom trial)
+    // Stripe subscription statuses: active, past_due, unpaid, canceled, incomplete, incomplete_expired, trialing
+    // Your original logic considered 'active' and Stripe's 'trialing' as granting access.
+    const isStripeActiveOrTrialing = profile.subscription_status === 'active' || profile.subscription_status === 'trialing'; // 'trialing' here usually means a Stripe-managed trial
 
-  // 3. Check if within current paid/trial period
-  // Ensure current_period_end is not null and is a date in the future
-  const isWithinPeriod = profile.current_period_end
-    ? new Date(profile.current_period_end) >= new Date() // Use >= to include the exact end date/time
-    : false;
+    // 4. Check if within current paid/Stripe-trial period
+    const isWithinStripePeriod = profile.current_period_end
+        ? new Date(profile.current_period_end) >= new Date()
+        : false;
 
-  // User has paid access if their subscription is active/trialing AND they are within the valid period
-  const hasPaidAccess = isActive && isWithinPeriod;
-  console.log(`Access Check: User ${userId} hasPaidAccess: ${hasPaidAccess} (Status: ${profile.subscription_status}, Period End: ${profile.current_period_end})`);
-
-  return hasPaidAccess;
+    if (isStripeActiveOrTrialing && isWithinStripePeriod) {
+        console.log(`Access Check: User ${userId} granted access (Status: ${profile.subscription_status}, Stripe Period End: ${profile.current_period_end})`);
+        return true;
+    }
+    
+    console.log(`Access Check: User ${userId} denied access. No valid access criteria met. Status: ${profile.subscription_status}, Custom Trial End: ${profile.trial_ends_at}, Stripe Period End: ${profile.current_period_end}`);
+    return false; // Default to no access if none of the above conditions are met
 }

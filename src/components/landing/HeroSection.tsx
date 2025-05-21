@@ -30,6 +30,7 @@ export function HeroSection({
   primaryCta,
   secondaryCta,
   image,
+  badgeText,
   finePrint,
 }: HeroSectionProps) {
   return (
@@ -73,15 +74,19 @@ export function HeroSection({
 
           {/* Image Column */}
           <div className="md:w-1/2 lg:w-2/5 mt-10 md:mt-0 w-full">
-            <div className="relative aspect-[4/3] sm:aspect-[5/3.5] max-h-[400px] md:max-h-[550px] lg:max-h-[650px] w-full"> {/* Increased max heights for a bigger image */}
+            <div className="relative aspect-[4/3] sm:aspect-[5/3.5] md:aspect-auto md:h-full max-h-[300px] sm:max-h-[350px] md:max-h-[450px] lg:max-h-[500px]"> {/* Adjusted aspect ratio and max height */}
               <Image
                 src={image.src}
                 alt={image.alt}
-                fill
+                fill // Use fill and let parent div control size with aspect ratio or fixed height
                 className="object-cover rounded-xl shadow-xl"
-                priority
+                priority // Good to add for LCP images
               />
-              {/* Removed badgeText overlay */}
+              {badgeText && (
+                <div className="absolute top-4 right-4 bg-white/80 backdrop-blur-sm text-gray-800 text-xs sm:text-sm font-semibold px-3 py-1.5 rounded-md shadow">
+                  {badgeText}
+                </div>
+              )}
             </div>
           </div>
         </div>

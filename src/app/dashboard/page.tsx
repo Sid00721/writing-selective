@@ -23,6 +23,7 @@ interface RawSupabaseSubmission {
     // scores_by_criterion is not directly used for the list display anymore,
     // but it's good to keep in the select if you might use it for other calculations
     // or if your overall_score depends on it.
+    feedback_status: string;
     scores_by_criterion?: Record<string, number | string> | null;
 }
 
@@ -71,10 +72,11 @@ export default async function DashboardPage() {
         id,
         created_at,
         prompts ( genre, prompt_text ),
-        overall_score
+        overall_score,
+        feedback_status
     `, { count: 'exact' }) // Get total count matching these initial criteria
     .eq('user_id', user.id)
-    .not('overall_score', 'is', null) // Consider only scored submissions for initial display and count
+    // .not('overall_score', 'is', null) // Consider only scored submissions for initial display and count
     .order('created_at', { ascending: false }) // Default sort for initial load
     .limit(initialItemsPerPage);
 
@@ -97,6 +99,7 @@ export default async function DashboardPage() {
       promptTitle: currentPromptData?.prompt_text || 'Untitled Prompt',
       date: new Date(sub.created_at).toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' }),
       overallScorePercentage: overallScorePercentage,
+      feedback_status: sub.feedback_status || 'Unknown',
       viewLink: `/submission/${sub.id}`,
     };
   });

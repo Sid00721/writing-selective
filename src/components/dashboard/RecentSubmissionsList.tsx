@@ -12,6 +12,7 @@ interface ClientFetchedApiSubmission {
   // With !inner join in API, prompts should always be an object if the submission is returned
   prompts: { genre: string; prompt_text: string; } | null; // Keep as potentially null if RLS could nullify it despite inner join
   overall_score?: number | null;
+  feedback_status: string;
 }
 
 interface RecentSubmissionsListProps {
@@ -94,6 +95,7 @@ export function RecentSubmissionsList({
           promptTitle: currentPromptData?.prompt_text || 'Untitled Prompt',
           date: new Date(sub.created_at).toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' }),
           overallScorePercentage: overallScorePercentage,
+          feedback_status: sub.feedback_status || 'Unknown',
           viewLink: `/submission/${sub.id}`,
         };
       });

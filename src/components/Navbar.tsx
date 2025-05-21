@@ -11,11 +11,14 @@ import {
   LogOut,
   Menu,
   X,
+  AlertTriangle, // Optional: for trial message icon
 } from "lucide-react";
 
 // ---- Types ---------------------------------------------------------------
 interface Profile {
   is_admin: boolean;
+  subscription_status?: string | null;
+  trial_ends_at?: string | null;
 }
 
 interface NavLink {
@@ -38,46 +41,65 @@ export default function AuthenticatedHeader() {
 
   // fetch user + profile once, then listen for auth changes
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
-      setUser(authUser);
+    const loadUserProfile = async (userId: string) => {
+      console.log("Navbar: loadUserProfile called for userId:", userId);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("is_admin, subscription_status, trial_ends_at")
+        .eq("id", userId)
+        .single();
 
-      if (authUser) {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", authUser.id)
-          .single();
-        setProfile(error ? { is_admin: false } : (data as Profile));
+      if (error && error.code !== 'PGRST116') { // PGRST116 = row not found
+        console.error("Navbar: Error fetching profile:", error.message);
+        setProfile({ is_admin: false, subscription_status: null, trial_ends_at: null });
+      } else {
+        console.log("Navbar: Fetched profile data from Supabase:", data);
+        setProfile(data ? (data as Profile) : { is_admin: false, subscription_status: null, trial_ends_at: null });
       }
-      setLoading(false);
     };
 
-    load();
+    const initialLoad = async () => {
+      console.log("Navbar: Initial load sequence started.");
+      setLoading(true);
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) {
+        console.error("Navbar: Error getting user on initial load:", authError.message);
+      }
+      setUser(authUser);
+      console.log("Navbar: Initial authUser state:", authUser ? authUser.id : 'No user');
+
+      if (authUser) {
+        await loadUserProfile(authUser.id);
+      } else {
+        setProfile(null); // Ensure profile is null if no authUser
+      }
+      setLoading(false);
+      console.log("Navbar: Initial load sequence finished. Loading state:", false);
+    };
+
+    initialLoad();
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
+        console.log("Navbar: Auth state changed. Event:", _event);
         const currentUser = session?.user ?? null;
         setUser(currentUser);
-        setIsMobileOpen(false);
+        setIsMobileOpen(false); 
+        console.log("Navbar: CurrentUser after auth state change:", currentUser ? currentUser.id : 'No user');
 
         if (currentUser) {
-          supabase
-            .from("profiles")
-            .select("is_admin")
-            .eq("id", currentUser.id)
-            .single()
-            .then(({ data, error }) =>
-              setProfile(error ? { is_admin: false } : (data as Profile))
-            );
-        } else setProfile(null);
+          await loadUserProfile(currentUser.id);
+        } else {
+          setProfile(null);
+        }
       }
     );
 
-    return () => listener?.subscription?.unsubscribe();
+    return () => {
+      console.log("Navbar: Unsubscribing auth listener.");
+      listener?.subscription?.unsubscribe();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -87,8 +109,7 @@ export default function AuthenticatedHeader() {
     setLoading(false);
     setIsMobileOpen(false);
   };
-
-  // ── Display data --------------------------------------------------------
+  
   const isAdmin = profile?.is_admin ?? false;
   const brand = "Selective Writing";
 
@@ -97,32 +118,88 @@ export default function AuthenticatedHeader() {
     { text: "Practice", href: "/practice", icon: <PracticeIcon size={18} /> },
   ];
 
+  // ---- DEBUG LOGGING FOR PROFILE STATE ----
+  if (typeof window !== 'undefined') { // Ensure logs run only on client-side for this component
+    console.log("Navbar: Rendering. Profile State:", JSON.stringify(profile, null, 2));
+    console.log("Navbar: Is Admin derived:", isAdmin);
+  }
+  
+  // ---- Calculate Trial Message ----
+  let trialMessageElement: React.ReactNode = null;
+  if (profile && profile.subscription_status === 'trial' && profile.trial_ends_at) {
+    if (typeof window !== 'undefined') {
+      console.log("Navbar: Attempting to calculate trial message.");
+      console.log("Navbar: Profile subscription_status:", profile.subscription_status);
+      console.log("Navbar: Profile trial_ends_at:", profile.trial_ends_at);
+    }
+
+    const now = new Date();
+    const trialEndDate = new Date(profile.trial_ends_at); // Ensure this parsing is correct
+    const timeRemaining = trialEndDate.getTime() - now.getTime();
+
+    if (typeof window !== 'undefined') {
+      console.log("Navbar: Current Time (now):", now.toISOString());
+      console.log("Navbar: Trial End Date (parsed):", isNaN(trialEndDate.getTime()) ? "Invalid Date" : trialEndDate.toISOString());
+      console.log("Navbar: Time Remaining (ms):", timeRemaining);
+    }
+
+    if (timeRemaining > 0) {
+      const daysRemaining = Math.ceil(timeRemaining / (1000 * 60 * 60 * 24));
+      let messageText = "";
+      if (daysRemaining === 1) {
+        messageText = "Trial: 1 day left";
+      } else {
+        messageText = `Trial: ${daysRemaining} days left`;
+      }
+      if (typeof window !== 'undefined') {
+        console.log("Navbar: Trial message calculated, should be visible:", messageText);
+      }
+      trialMessageElement = (
+        <span className="flex items-center px-3 py-1.5 rounded-md text-sm font-medium text-orange-700 bg-orange-100 border border-orange-300">
+          <AlertTriangle size={16} className="mr-1.5 text-orange-500" />
+          {messageText}
+        </span>
+      );
+    } else {
+      if (typeof window !== 'undefined') {
+        console.log("Navbar: Trial time remaining is not > 0 (trial might be expired or date parsing issue).");
+      }
+    }
+  } else {
+    if (typeof window !== 'undefined') {
+      if (profile) {
+        console.log("Navbar: Not calculating trial message because conditions not met.", 
+                    "Status:", profile.subscription_status, 
+                    "Ends At:", profile.trial_ends_at);
+      } else {
+        console.log("Navbar: Not calculating trial message because profile is null or not yet loaded.");
+      }
+    }
+  }
+
   // ---- Loading skeleton (keeps layout steady) ----------------------------
-  if (loading && !user) {
+  if (loading && !user && !profile) { 
     return (
       <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4 md:px-8 lg:px-16 flex justify-between">
+        <div className="container mx-auto px-6 py-4 md:px-8 lg:px-16 flex justify-between items-center">
           <span className="text-2xl font-bold text-gray-800">{brand}</span>
-          <span className="text-sm text-gray-500">Loading…</span>
+          <div className="h-8 w-48 bg-gray-200 rounded animate-pulse"></div>
         </div>
       </header>
     );
   }
 
-  // If somehow unauthenticated, render nothing (your layout should redirect)
-  if (!user) return null;
+  if (!user) return null; 
 
   // ---- Main header -------------------------------------------------------
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
       <div className="container mx-auto px-6 py-4 md:px-8 lg:px-16">
         <div className="flex items-center justify-between">
-          {/* Brand */}
           <Link href="/dashboard" className="text-2xl font-bold text-gray-800">
             {brand}
           </Link>
 
-          {/* Desktop nav */}
           <nav className="hidden md:flex items-center space-x-2 lg:space-x-4">
             {navLinks.map((link) => (
               <Link
@@ -135,8 +212,8 @@ export default function AuthenticatedHeader() {
             ))}
           </nav>
 
-          {/* Desktop actions */}
           <div className="hidden md:flex items-center space-x-2">
+            {trialMessageElement}
             {isAdmin && (
               <Link
                 href="/admin"
@@ -146,7 +223,6 @@ export default function AuthenticatedHeader() {
                 Admin
               </Link>
             )}
-
             <span
               className="px-3 py-1.5 rounded-md text-sm font-medium bg-white text-gray-700 border border-gray-300 flex items-center gap-x-1.5 cursor-default"
               title={user.email ?? "User"}
@@ -156,7 +232,6 @@ export default function AuthenticatedHeader() {
                 {user.email}
               </span>
             </span>
-
             <button
               onClick={handleLogout}
               disabled={loading}
@@ -167,7 +242,6 @@ export default function AuthenticatedHeader() {
             </button>
           </div>
 
-          {/* Mobile menu button */}
           <div className="md:hidden">
             <button
               onClick={() => setIsMobileOpen(!isMobileOpen)}
@@ -182,10 +256,15 @@ export default function AuthenticatedHeader() {
         </div>
       </div>
 
-      {/* Mobile menu */}
       {isMobileOpen && (
         <div className="md:hidden" id="mobile-menu">
           <nav className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
+            {/* MODIFIED: Added trial message for mobile view */}
+            {trialMessageElement && (
+              <div className="px-1 pt-1 pb-2"> {/* Wrapper for consistent padding/layout */}
+                {trialMessageElement}
+              </div>
+            )}
             {navLinks.map((link) => (
               <Link
                 key={link.text}
@@ -197,7 +276,6 @@ export default function AuthenticatedHeader() {
                 {link.text}
               </Link>
             ))}
-
             {isAdmin && (
               <Link
                 href="/admin"
@@ -207,13 +285,11 @@ export default function AuthenticatedHeader() {
                 <ShieldCheck className="mr-2" size={18} /> Admin
               </Link>
             )}
-
             <div className="pt-3 mt-2 border-t border-gray-100">
               <div className="flex items-center px-3 mb-2 text-gray-500">
                 <UserIcon size={18} className="mr-2" />
                 <span className="truncate">{user.email}</span>
               </div>
-
               <button
                 onClick={handleLogout}
                 disabled={loading}

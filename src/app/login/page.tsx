@@ -107,7 +107,7 @@ export default function LoginPage() {
 
           <div className="text-sm text-center text-gray-600 pt-2 sm:pt-4">
             Don&apos;t have an account?{' '}
-            <Link href="https://www.google.com/search?q=/signup" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
+            <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">
               Sign Up
             </Link>
           </div>

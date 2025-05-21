@@ -29,7 +29,7 @@ const defaultPlansData: PricingPlanItemProps[] = [
   {
     id: 1,
     name: "Complete Package",
-    price: "$15.00",
+    price: "$19.99",
     frequency: "/ month",
     // description: "One simple plan with all the features you need.", // Could be a prop for the section subtitle instead
     features: [

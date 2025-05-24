@@ -2,14 +2,14 @@
 "use client"; // <-- Add this line to enable client-side hooks like usePathname
 
 import type { Metadata } from "next"; // Metadata can still be exported from client components for initial load
-import { Inter } from 'next/font/google';
+import { Inter } from "next/font/google";
 import "./globals.css";
-import Navbar from '@/components/Navbar'; // This is your existing global Navbar
+import Navbar from "@/components/Navbar"; // This is your existing global Navbar
 
-import { Toaster } from 'react-hot-toast';
-import { usePathname } from 'next/navigation'; // Import usePathname
+import { Toaster } from "react-hot-toast";
+import { usePathname } from "next/navigation"; // Import usePathname
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ["latin"] });
 
 // Note: While `export const metadata` works for initial static rendering,
 // for fully dynamic titles/descriptions in a client component context,
@@ -33,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isLandingPage = pathname === '/'; // Check if the current path is the root/landing page
+  const isLandingPage = pathname === "/"; // Check if the current path is the root/landing page
 
   return (
     <html lang="en">
@@ -45,10 +45,14 @@ export default function RootLayout({
           If that causes issues in a "use client" layout, you might need to handle title/meta
           at the page level or through a useEffect hook for dynamic updates.
         */}
-        <title>Writing Selective Practice</title> {/* You can also manage this via metadata export */}
-        <meta name="description" content="Practice writing for the NSW selective test" />
+        <title>Writing Selective Practice</title>{" "}
+        {/* You can also manage this via metadata export */}
+        <meta
+          name="description"
+          content="Practice writing for the NSW selective test"
+        />
       </head>
-      <body className={`${inter.className} bg-slate-50`}>
+      <body className={`${inter.className} bg-slate-50 dark:bg-slate-900`}>
         {/* Conditionally render the global Navbar */}
         {/* It will NOT render if isLandingPage is true */}
         {!isLandingPage && <Navbar />}

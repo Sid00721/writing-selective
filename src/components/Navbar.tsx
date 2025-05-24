@@ -49,25 +49,47 @@ export default function AuthenticatedHeader() {
         .eq("id", userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = row not found
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = row not found
         console.error("Navbar: Error fetching profile:", error.message);
-        setProfile({ is_admin: false, subscription_status: null, trial_ends_at: null });
+        setProfile({
+          is_admin: false,
+          subscription_status: null,
+          trial_ends_at: null,
+        });
       } else {
         console.log("Navbar: Fetched profile data from Supabase:", data);
-        setProfile(data ? (data as Profile) : { is_admin: false, subscription_status: null, trial_ends_at: null });
+        setProfile(
+          data
+            ? (data as Profile)
+            : {
+                is_admin: false,
+                subscription_status: null,
+                trial_ends_at: null,
+              }
+        );
       }
     };
 
     const initialLoad = async () => {
       console.log("Navbar: Initial load sequence started.");
       setLoading(true);
-      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
-      
+      const {
+        data: { user: authUser },
+        error: authError,
+      } = await supabase.auth.getUser();
+
       if (authError) {
-        console.error("Navbar: Error getting user on initial load:", authError.message);
+        console.error(
+          "Navbar: Error getting user on initial load:",
+          authError.message
+        );
       }
       setUser(authUser);
-      console.log("Navbar: Initial authUser state:", authUser ? authUser.id : 'No user');
+      console.log(
+        "Navbar: Initial authUser state:",
+        authUser ? authUser.id : "No user"
+      );
 
       if (authUser) {
         await loadUserProfile(authUser.id);
@@ -75,7 +97,10 @@ export default function AuthenticatedHeader() {
         setProfile(null); // Ensure profile is null if no authUser
       }
       setLoading(false);
-      console.log("Navbar: Initial load sequence finished. Loading state:", false);
+      console.log(
+        "Navbar: Initial load sequence finished. Loading state:",
+        false
+      );
     };
 
     initialLoad();
@@ -85,8 +110,11 @@ export default function AuthenticatedHeader() {
         console.log("Navbar: Auth state changed. Event:", _event);
         const currentUser = session?.user ?? null;
         setUser(currentUser);
-        setIsMobileOpen(false); 
-        console.log("Navbar: CurrentUser after auth state change:", currentUser ? currentUser.id : 'No user');
+        setIsMobileOpen(false);
+        console.log(
+          "Navbar: CurrentUser after auth state change:",
+          currentUser ? currentUser.id : "No user"
+        );
 
         if (currentUser) {
           await loadUserProfile(currentUser.id);
@@ -109,27 +137,42 @@ export default function AuthenticatedHeader() {
     setLoading(false);
     setIsMobileOpen(false);
   };
-  
+
   const isAdmin = profile?.is_admin ?? false;
   const brand = "Selective Writing";
 
   const navLinks: NavLink[] = [
-    { text: "Dashboard", href: "/dashboard", icon: <LayoutDashboard size={18} /> },
+    {
+      text: "Dashboard",
+      href: "/dashboard",
+      icon: <LayoutDashboard size={18} />,
+    },
     { text: "Practice", href: "/practice", icon: <PracticeIcon size={18} /> },
   ];
 
   // ---- DEBUG LOGGING FOR PROFILE STATE ----
-  if (typeof window !== 'undefined') { // Ensure logs run only on client-side for this component
-    console.log("Navbar: Rendering. Profile State:", JSON.stringify(profile, null, 2));
+  if (typeof window !== "undefined") {
+    // Ensure logs run only on client-side for this component
+    console.log(
+      "Navbar: Rendering. Profile State:",
+      JSON.stringify(profile, null, 2)
+    );
     console.log("Navbar: Is Admin derived:", isAdmin);
   }
-  
+
   // ---- Calculate Trial Message ----
   let trialMessageElement: React.ReactNode = null;
-  if (profile && profile.subscription_status === 'trial' && profile.trial_ends_at) {
-    if (typeof window !== 'undefined') {
+  if (
+    profile &&
+    profile.subscription_status === "trial" &&
+    profile.trial_ends_at
+  ) {
+    if (typeof window !== "undefined") {
       console.log("Navbar: Attempting to calculate trial message.");
-      console.log("Navbar: Profile subscription_status:", profile.subscription_status);
+      console.log(
+        "Navbar: Profile subscription_status:",
+        profile.subscription_status
+      );
       console.log("Navbar: Profile trial_ends_at:", profile.trial_ends_at);
     }
 
@@ -137,9 +180,14 @@ export default function AuthenticatedHeader() {
     const trialEndDate = new Date(profile.trial_ends_at); // Ensure this parsing is correct
     const timeRemaining = trialEndDate.getTime() - now.getTime();
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       console.log("Navbar: Current Time (now):", now.toISOString());
-      console.log("Navbar: Trial End Date (parsed):", isNaN(trialEndDate.getTime()) ? "Invalid Date" : trialEndDate.toISOString());
+      console.log(
+        "Navbar: Trial End Date (parsed):",
+        isNaN(trialEndDate.getTime())
+          ? "Invalid Date"
+          : trialEndDate.toISOString()
+      );
       console.log("Navbar: Time Remaining (ms):", timeRemaining);
     }
 
@@ -151,8 +199,11 @@ export default function AuthenticatedHeader() {
       } else {
         messageText = `Trial: ${daysRemaining} days left`;
       }
-      if (typeof window !== 'undefined') {
-        console.log("Navbar: Trial message calculated, should be visible:", messageText);
+      if (typeof window !== "undefined") {
+        console.log(
+          "Navbar: Trial message calculated, should be visible:",
+          messageText
+        );
       }
       trialMessageElement = (
         <span className="flex items-center px-3 py-1.5 rounded-md text-sm font-medium text-orange-700 bg-orange-100 border border-orange-300">
@@ -161,26 +212,34 @@ export default function AuthenticatedHeader() {
         </span>
       );
     } else {
-      if (typeof window !== 'undefined') {
-        console.log("Navbar: Trial time remaining is not > 0 (trial might be expired or date parsing issue).");
+      if (typeof window !== "undefined") {
+        console.log(
+          "Navbar: Trial time remaining is not > 0 (trial might be expired or date parsing issue)."
+        );
       }
     }
   } else {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       if (profile) {
-        console.log("Navbar: Not calculating trial message because conditions not met.", 
-                    "Status:", profile.subscription_status, 
-                    "Ends At:", profile.trial_ends_at);
+        console.log(
+          "Navbar: Not calculating trial message because conditions not met.",
+          "Status:",
+          profile.subscription_status,
+          "Ends At:",
+          profile.trial_ends_at
+        );
       } else {
-        console.log("Navbar: Not calculating trial message because profile is null or not yet loaded.");
+        console.log(
+          "Navbar: Not calculating trial message because profile is null or not yet loaded."
+        );
       }
     }
   }
 
   // ---- Loading skeleton (keeps layout steady) ----------------------------
-  if (loading && !user && !profile) { 
+  if (loading && !user && !profile) {
     return (
-      <header className="bg-white shadow-sm sticky top-0 z-50">
+      <header className="bg-white shadow-sm sticky top-0 z-50 dark:bg-slate-800">
         <div className="container mx-auto px-6 py-4 md:px-8 lg:px-16 flex justify-between items-center">
           <span className="text-2xl font-bold text-gray-800">{brand}</span>
           <div className="h-8 w-48 bg-gray-200 rounded animate-pulse"></div>
@@ -189,14 +248,17 @@ export default function AuthenticatedHeader() {
     );
   }
 
-  if (!user) return null; 
+  if (!user) return null;
 
   // ---- Main header -------------------------------------------------------
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-50">
+    <header className="bg-white shadow-sm sticky top-0 z-50 dark:bg-slate-800">
       <div className="container mx-auto px-6 py-4 md:px-8 lg:px-16">
         <div className="flex items-center justify-between">
-          <Link href="/dashboard" className="text-2xl font-bold text-gray-800">
+          <Link
+            href="/dashboard"
+            className="text-2xl font-bold text-gray-800 dark:text-white"
+          >
             {brand}
           </Link>
 
@@ -205,7 +267,7 @@ export default function AuthenticatedHeader() {
               <Link
                 key={link.text}
                 href={link.href}
-                className="px-3 py-2 text-gray-600 hover:text-gray-900 font-medium rounded-md text-sm lg:text-base"
+                className="px-3 py-2 text-gray-600 hover:text-gray-900 font-medium rounded-md text-sm lg:text-base dark:text-gray-200 dark:hover:text-white"
               >
                 {link.text}
               </Link>
@@ -261,7 +323,9 @@ export default function AuthenticatedHeader() {
           <nav className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
             {/* MODIFIED: Added trial message for mobile view */}
             {trialMessageElement && (
-              <div className="px-1 pt-1 pb-2"> {/* Wrapper for consistent padding/layout */}
+              <div className="px-1 pt-1 pb-2">
+                {" "}
+                {/* Wrapper for consistent padding/layout */}
                 {trialMessageElement}
               </div>
             )}

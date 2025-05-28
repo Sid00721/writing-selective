@@ -1,4 +1,5 @@
 // src/components/Navbar.tsx
+"use client";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -39,97 +40,43 @@ export default function AuthenticatedHeader() {
   // mobile menu
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // fetch user + profile once, then listen for auth changes
-  useEffect(() => {
-    const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = React.useCallback(
+    async (userId: string) => {
       console.log("Navbar: loadUserProfile called for userId:", userId);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("is_admin, subscription_status, trial_ends_at")
-        .eq("id", userId)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("is_admin, subscription_status, trial_ends_at")
+          .eq("id", userId)
+          .single();
 
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 = row not found
-        console.error("Navbar: Error fetching profile:", error.message);
-        setProfile({
-          is_admin: false,
-          subscription_status: null,
-          trial_ends_at: null,
-        });
-      } else {
-        console.log("Navbar: Fetched profile data from Supabase:", data);
-        setProfile(
-          data
-            ? (data as Profile)
-            : {
-                is_admin: false,
-                subscription_status: null,
-                trial_ends_at: null,
-              }
-        );
-      }
-    };
-
-    const initialLoad = async () => {
-      console.log("Navbar: Initial load sequence started.");
-      setLoading(true);
-      const {
-        data: { user: authUser },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError) {
-        console.error(
-          "Navbar: Error getting user on initial load:",
-          authError.message
-        );
-      }
-      setUser(authUser);
-      console.log(
-        "Navbar: Initial authUser state:",
-        authUser ? authUser.id : "No user"
-      );
-
-      if (authUser) {
-        await loadUserProfile(authUser.id);
-      } else {
-        setProfile(null); // Ensure profile is null if no authUser
-      }
-      setLoading(false);
-      console.log(
-        "Navbar: Initial load sequence finished. Loading state:",
-        false
-      );
-    };
-
-    initialLoad();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        console.log("Navbar: Auth state changed. Event:", _event);
-        const currentUser = session?.user ?? null;
-        setUser(currentUser);
-        setIsMobileOpen(false);
-        console.log(
-          "Navbar: CurrentUser after auth state change:",
-          currentUser ? currentUser.id : "No user"
-        );
-
-        if (currentUser) {
-          await loadUserProfile(currentUser.id);
-        } else {
+        if (error) {
+          console.error("Navbar: Error fetching profile:", error);
           setProfile(null);
+        } else {
+          setProfile(data as Profile);
         }
+      } catch (error) {
+        console.error("Navbar: Exception in loadUserProfile:", error);
+      } finally {
+        setLoading(false);
       }
-    );
+    },
+    [supabase]
+  );
 
-    return () => {
-      console.log("Navbar: Unsubscribing auth listener.");
-      listener?.subscription?.unsubscribe();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => {
+    supabase.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      setIsMobileOpen(false);
+      if (currentUser) {
+        await loadUserProfile(currentUser.id);
+      } else {
+        setProfile(null);
+      }
+    });
+  }, [loadUserProfile, supabase.auth]);
 
   const handleLogout = async () => {
     setLoading(true);
@@ -149,16 +96,6 @@ export default function AuthenticatedHeader() {
     },
     { text: "Practice", href: "/practice", icon: <PracticeIcon size={18} /> },
   ];
-
-  // ---- DEBUG LOGGING FOR PROFILE STATE ----
-  if (typeof window !== "undefined") {
-    // Ensure logs run only on client-side for this component
-    console.log(
-      "Navbar: Rendering. Profile State:",
-      JSON.stringify(profile, null, 2)
-    );
-    console.log("Navbar: Is Admin derived:", isAdmin);
-  }
 
   // ---- Calculate Trial Message ----
   let trialMessageElement: React.ReactNode = null;
@@ -297,7 +234,7 @@ export default function AuthenticatedHeader() {
             <button
               onClick={handleLogout}
               disabled={loading}
-              className="px-3 py-1.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 flex items-center gap-x-1.5 disabled:opacity-60"
+              className="px-3 py-1.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 flex items-center gap-x-1.5 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
             >
               <LogOut size={16} />
               <span className="hidden sm:inline">Logout</span>

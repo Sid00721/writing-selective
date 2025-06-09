@@ -84,7 +84,7 @@ export default function WaitlistPage() {
               id="parentName"
               name="parentName"
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm text-gray-900"
             />
           </div>
           
@@ -100,7 +100,7 @@ export default function WaitlistPage() {
               // --- CHANGE: Added pattern for client-side validation (no letters) ---
               pattern="[0-9\s+-]*"
               title="Please enter a valid phone number without letters."
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm text-gray-900"
             />
           </div>
 
@@ -113,7 +113,7 @@ export default function WaitlistPage() {
               id="yearLevel"
               name="yearLevel"
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm bg-white"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm bg-white text-gray-900"
             >
               <option value="">Please select a year</option>
               <option value="4">Year 4</option>
@@ -129,7 +129,7 @@ export default function WaitlistPage() {
               id="message"
               name="message"
               rows={4}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm text-gray-900"
             ></textarea>
           </div>
 

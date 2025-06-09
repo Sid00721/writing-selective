@@ -70,7 +70,7 @@ export default function WaitlistPage() {
               id="studentName"
               name="studentName"
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-gray-500 focus:border-gray-500 shadow-sm text-gray-900"
             />
           </div>
 

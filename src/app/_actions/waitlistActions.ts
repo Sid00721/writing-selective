@@ -1,3 +1,4 @@
+// src/app/_actions/waitlistActions.ts
 "use server";
 
 import { Resend } from 'resend';
@@ -21,17 +22,16 @@ export async function submitWaitlist(prevState: FormState, formData: FormData) {
   const yearLevel = formData.get('yearLevel') as string;
   const message = formData.get('message') as string || 'No message provided.';
 
-  // --- ENHANCED VALIDATION ---
+  // --- Enhanced Validation ---
   if (!studentName || !parentName || !phone || !yearLevel) {
     return { message: 'Please fill out all required fields.', success: false };
   }
   
-  // Checks if the phone number contains anything other than numbers, spaces, or a plus/minus sign
   const phoneRegex = /^[0-9\s+-]*$/;
   if (!phoneRegex.test(phone)) {
     return { message: 'Please enter a valid phone number with no letters.', success: false };
   }
-  // --- END VALIDATION ---
+  // --- End Validation ---
 
   const emailHtml = `
     <div>
@@ -52,7 +52,7 @@ export async function submitWaitlist(prevState: FormState, formData: FormData) {
   try {
     await resend.emails.send({
       from: 'Waitlist Form <onboarding@resend.dev>',
-      to: 'YOUR_EMAIL_HERE@example.com', 
+      to: 'siddhantsaini07@gmail.com', 
       subject: `New EOI Submission: ${studentName}`,
       html: emailHtml,
     });

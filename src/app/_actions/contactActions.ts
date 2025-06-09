@@ -47,7 +47,7 @@ export async function submitContactForm(prevState: FormState, formData: FormData
   try {
     await resend.emails.send({
       from: 'Contact Form <onboarding@resend.dev>',
-      to: 'YOUR_EMAIL_HERE@example.com', // <-- IMPORTANT: CHANGE THIS
+      to: 'siddhantsaini07@gmail.com', // <-- IMPORTANT: CHANGE THIS
       subject: `New Message from ${name}: ${subject}`,
       replyTo: email, // This allows you to reply directly to the user
       html: emailHtml,

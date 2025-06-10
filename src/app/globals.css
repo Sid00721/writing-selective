@@ -3,27 +3,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* You can add any custom global styles or overrides below */
-
-/* Keep these if you want manual background/foreground control,
-   but Tailwind classes are often preferred */
+/* Fixed CSS variables for consistent theming across environments */
 :root {
   --background: #ffffff;
-  --foreground: #171717; /* Default blackish text on white background */
+  --foreground: #171717;
 }
 
+/* Remove automatic dark mode detection to ensure consistency */
+/* Commenting out the media query that was causing inconsistencies */
+/*
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a; /* Dark background */
-    --foreground: #ededed; /* Light text on dark background */
+    --background: #0a0a0a;
+    --foreground: #ededed;
   }
 }
+*/
 
+/* Force light theme for consistency across all environments */
 body {
   background: var(--background);
   color: var(--foreground);
-  /* font-family can often be removed if relying on next/font + tailwind base */
-  /* font-family: Arial, Helvetica, sans-serif; */
+  /* Ensure consistent font rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure all text elements use consistent colors */
+* {
+  box-sizing: border-box;
 }
 
 /* **** ADDED FOR DEBUGGING TEXT VISIBILITY **** */
@@ -46,11 +54,9 @@ body {
     height: auto !important;              /* Ensure height isn't collapsed */
     opacity: 1 !important;                /* Ensure not transparent */
     visibility: visible !important;       /* Ensure not hidden */
-    /* Add any other styles you think might be causing invisibility */
 }
 
 /* More specific targeting if Lexical's ContentEditable has a specific class (e.g., 'content-readonly') */
-/* and its direct children are the paragraphs etc. */
 .content-readonly > p,
 .content-readonly > div > p { /* Example if paragraphs are nested one level down */
     color: var(--foreground) !important;

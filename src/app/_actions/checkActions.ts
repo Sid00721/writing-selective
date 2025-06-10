@@ -145,6 +145,10 @@ export async function createCheckoutSession(): Promise<ActionResult> {
           user_id: user.id,
       },
       allow_promotion_codes: true, // Optional: allow discount codes
+      payment_method_collection: 'if_required', // Only require payment info if needed
+      subscription_data: {
+        trial_period_days: 30, // set number of trial days
+      },
     });
 
     console.log(`[Server Action Runtime] Checkout session ${session.id} created.`);

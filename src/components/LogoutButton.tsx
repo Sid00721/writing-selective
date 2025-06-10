@@ -9,16 +9,20 @@ export default function LogoutButton() {
   const supabase = createClient(); // Create browser client
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signOut();
 
-    if (error) {
-      console.error('Error logging out:', error.message);
-      // Optionally show an error message to the user
-    } else {
-       // Redirect to homepage or login page after logout
-       // Using router.refresh() might also be needed sometimes to clear cached pages
-      router.push('/login');
-      router.refresh(); // Force refresh to ensure server components re-evaluate auth state
+      if (error) {
+        console.error('Error logging out:', error.message);
+        // Still redirect even if there's an error to ensure UI state is cleared
+      }
+      
+      // Use window.location.href for immediate redirect and state clearing
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Unexpected error during logout:', error);
+      // Force redirect even on unexpected errors
+      window.location.href = '/login';
     }
   };
 

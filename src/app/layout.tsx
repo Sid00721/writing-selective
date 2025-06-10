@@ -34,6 +34,7 @@ export default function RootLayout({
 }) {
   const pathname = usePathname();
   const isLandingPage = pathname === '/'; // Check if the current path is the root/landing page
+  const isAuthPage = ['/login', '/signup', '/forgot-password', '/reset-password'].includes(pathname);
 
   return (
     <html lang="en">
@@ -50,8 +51,8 @@ export default function RootLayout({
       </head>
       <body className={`${inter.className} bg-slate-50`}>
         {/* Conditionally render the global Navbar */}
-        {/* It will NOT render if isLandingPage is true */}
-        {!isLandingPage && <Navbar />}
+        {/* It will NOT render if isLandingPage or isAuthPage is true */}
+        {!isLandingPage && !isAuthPage && <Navbar />}
 
         <main>{children}</main>
         <Toaster position="bottom-center" />

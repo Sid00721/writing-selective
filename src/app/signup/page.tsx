@@ -1,7 +1,8 @@
 // src/app/signup/page.tsx
 "use client";
 
-import { useState, ChangeEvent, FormEvent } from 'react';
+import { useState, ChangeEvent, FormEvent, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 
@@ -14,7 +15,33 @@ export default function SignUpPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
+  const router = useRouter();
   const supabase = createClient();
+
+  // Check if user is already authenticated and redirect
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          // Set redirecting state to prevent form flash
+          setRedirecting(true);
+          // Use replace instead of push to avoid adding to history
+          router.replace('/dashboard');
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking authentication:', error);
+      } finally {
+        // Only set checkingAuth to false if we're not redirecting
+        setCheckingAuth(false);
+      }
+    };
+
+    checkUser();
+  }, [router, supabase.auth]);
 
   const handleSignUp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -56,6 +83,27 @@ export default function SignUpPage() {
       setAgreedToTerms(false);
     }
   };
+
+  // Show loading while checking authentication
+  if (checkingAuth || redirecting) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen bg-slate-50 px-4 py-12">
+        <div className="w-full max-w-md bg-white p-6 sm:p-8 md:p-10 rounded-xl shadow-2xl border-2 border-gray-800">
+          <div className="text-center">
+            <div className="flex justify-center items-center mb-4">
+              <svg className="animate-spin h-8 w-8 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div className="text-lg text-gray-600">
+              {redirecting ? 'Redirecting to dashboard...' : 'Checking authentication...'}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     // This outer div centers the card on the page

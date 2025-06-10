@@ -2,15 +2,12 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { checkUserAccessStatus } from '@/lib/accessControl';
+import { getSubscriptionInfo } from '@/lib/subscriptionStatus';
 
 // Import Dashboard UI Components
 import { WelcomeHeader } from '@/components/dashboard/WelcomeHeader';
 import { OverviewStats } from '@/components/dashboard/OverviewStats';
-// SubmissionItemData is now primarily defined and exported from SubmissionListItem.tsx,
-// RecentSubmissionsList imports it from there.
-// So, dashboard/page.tsx doesn't strictly need to import SubmissionItemData if it's only creating data
-// that conforms to the structure RecentSubmissionsList expects for its initialSubmissions prop.
-// However, for clarity during data transformation, we can use a local type or import it.
+import { TrialStatusBanner } from '@/components/dashboard/TrialStatusBanner';
 import { RecentSubmissionsList } from '@/components/dashboard/RecentSubmissionsList';
 import type { SubmissionItemData } from '@/components/dashboard/SubmissionListItem'; // Assuming this path
 
@@ -132,21 +129,46 @@ export default async function DashboardPage() {
     }
   }
 
-  // 3. Words Written (Placeholder - to be replaced or logic implemented)
-  const wordsWrittenPlaceholder = "TBD";
+  // 3. Words Written - Sum all word counts from user's submissions
+  let totalWordsWritten = 0;
+  const { data: wordCountData, error: wordCountError } = await supabase
+    .from('submissions')
+    .select('word_count')
+    .eq('user_id', user.id)
+    .not('word_count', 'is', null);
+
+  if (wordCountError) {
+    console.error("Error fetching word counts:", wordCountError.message);
+  } else if (wordCountData && wordCountData.length > 0) {
+    totalWordsWritten = wordCountData.reduce((sum, submission) => {
+      const wordCount = submission.word_count;
+      return sum + (typeof wordCount === 'number' ? wordCount : 0);
+    }, 0);
+  }
+
+  const totalWordsWrittenString = totalWordsWritten.toLocaleString();
 
   const overviewStatsData = [
     { id: 'practices', label: "Total Practices", value: actualTotalPractices, subtext: "Great progress!" },
     { id: 'avgScore', label: "Average Score", value: overallAverageScorePercentageString, subtext: "Excellent work!" },
-    { id: 'wordsWritten', label: "Words Written (TBD)", value: wordsWrittenPlaceholder, subtext: "Metric to be updated" },
+    { id: 'wordsWritten', label: "Words Written", value: totalWordsWrittenString, subtext: "Keep writing!" },
   ];
 
   const hasAccess = await checkUserAccessStatus(user.id);
+  
+  // Get subscription info for trial status banner
+  const subscriptionInfo = await getSubscriptionInfo(user.id);
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
         <WelcomeHeader userName={userNameForWelcome} />
+        
+        {/* Trial Status Banner */}
+        {subscriptionInfo && (
+          <TrialStatusBanner subscriptionInfo={subscriptionInfo} />
+        )}
+        
         <OverviewStats stats={overviewStatsData} />
 
         <div className="mt-6 md:mt-8">

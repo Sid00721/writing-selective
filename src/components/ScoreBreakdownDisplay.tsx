@@ -25,7 +25,7 @@ const ScoreBar: React.FC<{ score: number; maxScore?: number }> = ({ score, maxSc
   else if (percentage >= 40) bgColor = 'bg-orange-500'; // 2/5
 
   return (
-    <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 my-1">
+    <div className="w-full bg-gray-200 rounded-full h-2.5 my-1">
       <div
         className={`${bgColor} h-2.5 rounded-full transition-all duration-500 ease-out`}
         style={{ width: `${percentage}%` }}

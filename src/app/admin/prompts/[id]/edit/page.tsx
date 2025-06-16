@@ -33,8 +33,8 @@ export default async function EditPromptPage({ params }: PageProps) {
       );
     }
 
-    // --- Create Client by PASSING variables (without await) ---
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // --- Create Client ---
+    const supabase = createClient();
 
     const promptId = params.id;
 

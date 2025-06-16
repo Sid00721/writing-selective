@@ -82,7 +82,7 @@ export function TrialCountdown({ subscriptionInfo, variant = 'banner', className
     if (variant === 'navbar') {
       // Determine the most appropriate button text based on subscription status
       let buttonText = 'Subscribe';
-      let buttonClass = 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200';
+      const buttonClass = 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200';
       
       if (subscriptionInfo.subscriptionStatus === 'canceled') {
         buttonText = 'Resubscribe';

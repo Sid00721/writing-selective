@@ -39,8 +39,8 @@ export default async function AdminSubmissionDetailPage({ params }: PageProps) {
     );
   }
 
-  // --- Create Client by PASSING variables (without await) ---
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  // --- Create Client ---
+  const supabase = createClient();
 
   // Convert param ID to number if your DB function expects bigint/int
   // If your ID is UUID, keep it as string: const submissionId = params.id;

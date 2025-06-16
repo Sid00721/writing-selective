@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { checkUserAccessStatus, getSubscriptionRedirectUrl, debugUserAccess } from '@/lib/accessControl';
 import { getSubscriptionInfo } from '@/lib/subscriptionStatus';
 import Link from 'next/link';
-import InstructionsClient from './InstructionsClient'; // Client component for interaction
+import InstructionsClientComponent from './InstructionsClientComponent'; 
 
 // Example Instructions List
 const instructionsList = [
@@ -92,7 +92,7 @@ export default async function InstructionsPage({ searchParams }: InstructionsPag
                 </div>
 
                 {/* Client component for the start test button */}
-                <InstructionsClient genre={genre} />
+                <InstructionsClientComponent genre={genre} />
 
                 <div className="text-sm text-center text-gray-600 pt-2">
                     <Link href="/practice" className="font-medium text-indigo-600 hover:text-indigo-500 hover:underline">

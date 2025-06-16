@@ -7,19 +7,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 async function isAdminUser(): Promise<boolean> {
     console.log("isAdminUser: Checking admin status...");
 
-    // --- Read Environment Variables ---
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    // --- Check if variables exist ---
-    if (!supabaseUrl || !supabaseKey) {
-      console.error("isAdminUser Error: Supabase URL or Anon Key missing!");
-      // Cannot determine admin status if client can't be created
-      return false;
-    }
-
-    // --- Create Client by PASSING variables (without await) ---
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // --- Create Client ---
+    const supabase = createClient();
 
 
     // --- Check user session ---

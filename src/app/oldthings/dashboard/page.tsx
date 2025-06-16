@@ -36,8 +36,8 @@ export default async function DashboardPage() {
       );
     }
 
-    // --- Create Client by PASSING variables (without await) ---
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // --- Create Client ---
+    const supabase = createClient();
 
     // 1. Check user session
     console.log("Dashboard: Checking user session...");

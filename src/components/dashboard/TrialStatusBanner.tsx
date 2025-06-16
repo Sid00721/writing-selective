@@ -55,7 +55,7 @@ export function TrialStatusBanner({ subscriptionInfo }: TrialStatusBannerProps) 
               Subscription expired
             </h3>
             <p className="text-sm text-red-700">
-              Your subscription has expired. Use the "Renew" button in the top navigation to continue accessing premium features.
+              Your subscription has expired. Use the &quot;Renew&quot; button in the top navigation to continue accessing premium features.
             </p>
           </div>
         </div>
@@ -77,8 +77,8 @@ export function TrialStatusBanner({ subscriptionInfo }: TrialStatusBannerProps) 
             </h3>
             <p className="text-sm text-orange-700">
               {subscriptionInfo.subscriptionStatus === 'canceled' 
-                ? 'Your subscription was canceled. Use the "Resubscribe" button in the top navigation to regain access to premium features.'
-                : 'You need an active subscription to access premium features. Use the "Subscribe" button in the top navigation to get started.'
+                ? 'Your subscription was canceled. Use the &quot;Resubscribe&quot; button in the top navigation to regain access to premium features.'
+                : 'You need an active subscription to access premium features. Use the &quot;Subscribe&quot; button in the top navigation to get started.'
               }
             </p>
           </div>

@@ -28,8 +28,8 @@ export default async function ManagePromptsPage() {
       );
     }
 
-    // --- Create Client by PASSING variables (without await) ---
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // --- Create Client ---
+    const supabase = createClient();
 
     // Assuming AdminLayout handles the overall admin check
 

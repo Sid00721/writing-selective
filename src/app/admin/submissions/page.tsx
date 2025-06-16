@@ -29,8 +29,8 @@ export default async function ViewSubmissionsPage() {
       );
     }
 
-    // --- Create Client by PASSING variables (without await) ---
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // --- Create Client ---
+    const supabase = createClient();
 
     // --- Call the database function to get all submissions for admin view ---
     // Ensure the user calling this page is verified as admin via the layout or middleware

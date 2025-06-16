@@ -1,4 +1,6 @@
 // src/components/Navbar.tsx
+"use client";
+
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,7 +36,7 @@ interface NavLink {
 }
 
 // ---- Component -----------------------------------------------------------
-export default function AuthenticatedHeader() {
+export default function Navbar() {
   const supabase = createClient();
   const pathname = usePathname();
 
@@ -251,17 +253,6 @@ export default function AuthenticatedHeader() {
                 subscriptionInfo={subscriptionInfo} 
                 variant="navbar" 
               />
-            )}
-            
-            {/* Upgrade button for non-subscribed users */}
-            {subscriptionInfo && !subscriptionInfo.isAdmin && !subscriptionInfo.isTrialing && !subscriptionInfo.hasAccess && (
-              <Link
-                href="/pricing"
-                className="px-3 py-1.5 rounded-md text-sm font-medium bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200 flex items-center gap-x-1.5"
-              >
-                <Crown size={16} />
-                Upgrade
-              </Link>
             )}
 
             <span

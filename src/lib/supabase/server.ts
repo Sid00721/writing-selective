@@ -1,22 +1,13 @@
 // src/lib/supabase/server.ts
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers'; // Keep this import
+import { cookies } from 'next/headers';
 
-// Modified: Function now accepts URL and Key as arguments
-export function createClient(supabaseUrl: string, supabaseKey: string) {
-  // Corrected: Remove 'await', cookies() is synchronous
+export function createClient() {
   const cookieStore = cookies();
 
-  // Check if required arguments were passed
-  if (!supabaseUrl || !supabaseKey) {
-    // Throw an error early if the config is missing when the function is called
-    throw new Error('Supabase URL and Anon Key are required to create a client.');
-  }
-
-  // Use the passed arguments
   return createServerClient(
-    supabaseUrl,
-    supabaseKey,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {

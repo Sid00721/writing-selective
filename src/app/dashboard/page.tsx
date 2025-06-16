@@ -24,18 +24,7 @@ interface RawSupabaseSubmission {
 }
 
 export default async function DashboardPage() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Dashboard Page Error: Supabase URL or Anon Key missing!");
-    return (
-      <div className="container mx-auto p-6 text-center text-red-500">
-        Server configuration error. Cannot load dashboard.
-      </div>
-    );
-  }
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {

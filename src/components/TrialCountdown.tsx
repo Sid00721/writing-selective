@@ -72,13 +72,68 @@ export function TrialCountdown({ subscriptionInfo, variant = 'banner', className
     return null;
   }
 
-  // Don't show for non-trial users or admins
-  if (!subscriptionInfo.isTrialing || subscriptionInfo.isAdmin || subscriptionInfo.hasFreeAccess) {
+  // Don't show for admins or users with free access
+  if (subscriptionInfo.isAdmin || subscriptionInfo.hasFreeAccess) {
+    return null;
+  }
+
+  // Show subscription prompt for canceled/expired subscriptions (not trialing)
+  if (!subscriptionInfo.isTrialing && !subscriptionInfo.isActive) {
+    if (variant === 'navbar') {
+      // Determine the most appropriate button text based on subscription status
+      let buttonText = 'Subscribe';
+      let buttonClass = 'bg-red-100 text-red-700 border-red-300 hover:bg-red-200';
+      
+      if (subscriptionInfo.subscriptionStatus === 'canceled') {
+        buttonText = 'Resubscribe';
+      } else if (subscriptionInfo.isExpired) {
+        buttonText = 'Renew';
+      }
+
+      return (
+        <Link
+          href="/pricing"
+          className={`px-3 py-1.5 rounded-md text-sm font-medium ${buttonClass} border flex items-center gap-x-1.5 ${className}`}
+        >
+          <Crown size={16} />
+          {buttonText}
+        </Link>
+      );
+    }
+    
+    if (variant === 'banner') {
+      return (
+        <div className="w-full bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-red-800">
+                  Subscription Required
+                </h3>
+                <p className="text-sm text-red-700">
+                  Your subscription has expired. Resubscribe to continue accessing premium features.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+            >
+              <Crown className="h-4 w-4 mr-2" />
+              Resubscribe Now
+            </Link>
+          </div>
+        </div>
+      );
+    }
     return null;
   }
 
   // Trial expired
-  if (subscriptionInfo.isExpired) {
+  if (subscriptionInfo.isTrialing && subscriptionInfo.isExpired) {
     if (variant === 'navbar') {
       return (
         <Link
@@ -110,10 +165,12 @@ export function TrialCountdown({ subscriptionInfo, variant = 'banner', className
           } ${className}`}
       >
         <Clock size={16} />
-        {timeRemaining.days > 0
-          ? `${timeRemaining.days}d left`
-          : `${timeRemaining.hours}h left`
-        }
+        <span>
+          Trial: {timeRemaining.days > 0
+            ? `${timeRemaining.days}d left`
+            : `${timeRemaining.hours}h left`
+          }
+        </span>
       </Link>
     );
   }
@@ -176,7 +233,7 @@ export function TrialCountdown({ subscriptionInfo, variant = 'banner', className
                   </span>
                 )}
                 <span className="text-xs">
-                  {isCritical ? 'Subscribe now to avoid interruption' : 'Subscribe to continue access'}
+                  {isCritical ? 'Upgrade now to avoid interruption' : 'Upgrade to continue unlimited access'}
                 </span>
               </div>
             </div>
@@ -192,7 +249,7 @@ export function TrialCountdown({ subscriptionInfo, variant = 'banner', className
             }`}
         >
           <Crown className="h-4 w-4 mr-2" />
-          Subscribe Now
+          Upgrade Now
         </Link>
       </div>
     </div>

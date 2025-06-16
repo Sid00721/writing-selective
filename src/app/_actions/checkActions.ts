@@ -20,21 +20,11 @@ export interface ActionResult {
     checkoutUrl?: string | null; // URL for Stripe Checkout
 }
 
-export async function createCheckoutSession(): Promise<ActionResult> {
-  // Read environment variables HERE
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  // Verify they exist before attempting to create the client
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Checkout Action Error: Supabase URL or Anon Key environment variables are missing!");
-    // Return a generic error to the client, log the specific issue server-side
-    return { error: "Server configuration error. Please try again later." };
-  }
-
-  console.log("[Server Action Runtime] Attempting to create Supabase client by passing vars...");
-  // Pass the variables explicitly to the createClient function from src/lib/supabase/server.ts
-  const supabase = createClient(supabaseUrl, supabaseKey);
+export async function createCheckoutSession(bypassPayment: boolean = false, trialDays: number = 30): Promise<ActionResult> {
+  console.log("[Server Action Runtime] Attempting to create Supabase client...");
+  console.log("[Server Action Runtime] bypassPayment:", bypassPayment, "trialDays:", trialDays);
+  // Use the standard createClient function
+  const supabase = createClient();
   console.log("[Server Action Runtime] Supabase client supposedly created.");
 
   // 1. Get User
@@ -54,13 +44,23 @@ export async function createCheckoutSession(): Promise<ActionResult> {
   console.log(`[Server Action Runtime] Fetching profile for user ${user.id}`);
   const { data: profileData, error: profileFetchError } = await supabase
     .from('profiles')
-    .select('stripe_customer_id')
+    .select('stripe_customer_id, subscription_status, current_period_end')
     .eq('id', user.id)
     .single();
 
   if (profileFetchError && profileFetchError.code !== 'PGRST116') { // PGRST116 = 'Row not found'
     console.error("Checkout Action Error: Error fetching profile:", profileFetchError);
     return { error: "Could not retrieve user profile." };
+  }
+
+  // Check if user had ANY previous subscription status (no free trial for ANY returning users)
+  // Only completely new users (null subscription_status) get free trials
+  const hadPreviousSubscription = profileData?.subscription_status !== null;
+  
+  if (hadPreviousSubscription && profileData) {
+    console.log(`[Server Action Runtime] User ${user.id} had previous subscription status: ${profileData.subscription_status}. No free trial allowed.`);
+  } else {
+    console.log(`[Server Action Runtime] User ${user.id} is completely new (no previous subscription). Free trial allowed.`);
   }
 
   customerId = profileData?.stripe_customer_id ?? undefined;
@@ -129,6 +129,28 @@ export async function createCheckoutSession(): Promise<ActionResult> {
 
   try {
     console.log(`[Server Action Runtime] Creating Checkout session for customer ${customerId} with price ${priceId}`);
+    
+    // Configure subscription data based on parameters and user history
+    let subscriptionData = {};
+    let paymentMethodCollection: 'always' | 'if_required' = 'if_required';
+    
+    if (bypassPayment) {
+      // For trialing users who want to continue trial without payment
+      subscriptionData = { trial_period_days: trialDays };
+      paymentMethodCollection = 'if_required'; // Don't require payment during trial
+      console.log(`[Server Action Runtime] Trial configuration: ${trialDays} days, bypassing payment`);
+    } else if (hadPreviousSubscription) {
+      // No trial for returning users, payment required
+      subscriptionData = {};
+      paymentMethodCollection = 'always';
+      console.log(`[Server Action Runtime] Returning user: No trial, payment required`);
+    } else {
+      // New users get trial
+      subscriptionData = { trial_period_days: trialDays };
+      paymentMethodCollection = 'if_required';
+      console.log(`[Server Action Runtime] New user: ${trialDays}-day trial`);
+    }
+    
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       line_items: [
@@ -145,10 +167,8 @@ export async function createCheckoutSession(): Promise<ActionResult> {
           user_id: user.id,
       },
       allow_promotion_codes: true, // Optional: allow discount codes
-      payment_method_collection: 'if_required', // Only require payment info if needed
-      subscription_data: {
-        trial_period_days: 30, // set number of trial days
-      },
+      payment_method_collection: paymentMethodCollection,
+      subscription_data: subscriptionData,
     });
 
     console.log(`[Server Action Runtime] Checkout session ${session.id} created.`);

@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server'; // Use the modified server client
 import WritingSession from '@/components/WritingSession'; // Ensure this path is correct
 import Link from 'next/link';
-import { checkUserAccessStatus } from '@/lib/accessControl'; // Keep access check
+import { checkUserAccessStatus, getSubscriptionRedirectUrl } from '@/lib/accessControl'; // Keep access check
+import { getSubscriptionInfo } from '@/lib/subscriptionStatus';
 
 // Define the structure of the prompt data
 interface Prompt {
@@ -21,23 +22,8 @@ interface PageProps {
 export default async function WritingPage({ searchParams }: PageProps) {
   console.log("--- /writing page received searchParams:", searchParams);
 
-  // --- Read Environment Variables ---
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; // Using Anon key for server component
-
-  // --- Check if variables exist ---
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Writing Page Error: Supabase URL or Anon Key missing!");
-    return (
-        <div className="container mx-auto p-6 text-center text-red-500">
-            Server configuration error. Cannot load writing session.
-        </div>
-    );
-  }
-
-  // --- Create Client by PASSING variables ---
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
+  // --- Create Supabase Client ---
+  const supabase = createClient();
 
   // 1. Check user session
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -45,13 +31,30 @@ export default async function WritingPage({ searchParams }: PageProps) {
     redirect('/login?message=Please log in to write');
   }
 
-  // --- ADD ACCESS CHECK ---
+  // --- QUICK STATUS-BASED REDIRECT CHECK ---
+  console.log(`WritingPage: Checking subscription status for quick redirect...`);
+  const subscriptionInfo = await getSubscriptionInfo(user.id);
+  
+  if (subscriptionInfo) {
+    // Quick redirect for users who need to handle subscription first
+    if (subscriptionInfo.subscriptionStatus === 'trial') {
+      console.log(`User ${user.id} has 'trial' status, redirecting to start trial`);
+      redirect('/pricing');
+    }
+    
+    if (!subscriptionInfo.hasAccess) {
+      console.log(`User ${user.id} has no access, redirecting to subscription page`);
+      redirect('/pricing');
+    }
+  }
+
+  // --- FALLBACK ACCESS CHECK (if subscription info failed) ---
   const hasAccess = await checkUserAccessStatus(user.id);
   if (!hasAccess) {
-    console.log(`User ${user.id} denied access to /writing, redirecting to /pricing`);
-    redirect('/pricing');
+    const redirectUrl = await getSubscriptionRedirectUrl(user.id);
+    console.log(`User ${user.id} denied access to /writing, redirecting to ${redirectUrl}`);
+    redirect(redirectUrl);
   }
-  // --- END ACCESS CHECK ---
 
   // 2. Get selected genre from query parameters
   const selectedGenre = typeof searchParams?.genre === 'string' ? searchParams.genre : null;

@@ -40,14 +40,17 @@ export async function getSubscriptionInfoClient(userId: string | undefined): Pro
   const subscriptionStatus = profile.subscription_status;
   const currentPeriodEnd = profile.current_period_end;
   
-  const isTrialing = subscriptionStatus === 'trialing';
+  // trial = no active subscription, needs to start trial (should NOT show countdown)
+  // trialing = has active trial subscription, can upgrade to paid (should show countdown)
+  const isTrialing = subscriptionStatus === 'trialing'; // Only 'trialing' status shows countdown
   const isActive = subscriptionStatus === 'active';
-  const isActiveOrTrialing = isActive || isTrialing;
+  const isActiveOrTrialing = isActive || isTrialing; // Only active trials count for access
 
   let daysRemaining: number | null = null;
   let isExpired = false;
 
-  if (currentPeriodEnd) {
+  // Only calculate time remaining for 'trialing' status, NOT for 'trial' status
+  if (currentPeriodEnd && isTrialing) {
     const endDate = new Date(currentPeriodEnd);
     const now = new Date();
     const timeDiff = endDate.getTime() - now.getTime();
@@ -74,6 +77,12 @@ export function getSubscriptionDisplayText(subscriptionInfo: SubscriptionInfo): 
   if (subscriptionInfo.isAdmin) return "Admin";
   if (subscriptionInfo.hasFreeAccess) return "Free Access";
   
+  // Handle 'trial' status - users who need to start their trial
+  if (subscriptionInfo.subscriptionStatus === 'trial') {
+    return "Start Trial";
+  }
+  
+  // Handle 'trialing' status - users with active trial
   if (subscriptionInfo.isTrialing) {
     if (subscriptionInfo.isExpired) {
       return "Trial Expired";

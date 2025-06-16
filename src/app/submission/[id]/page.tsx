@@ -1,6 +1,7 @@
 // src/app/submission/[id]/page.tsx
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { checkUserAccessStatus, getSubscriptionRedirectUrl } from '@/lib/accessControl';
 import Link from 'next/link';
 import SubmissionReviewTabs from '@/components/SubmissionReviewTabs'; // <-- NEW COMPONENT
 import { type SubmissionData } from '@/components/submission-types'; // <-- Assuming you'll create this
@@ -37,21 +38,22 @@ interface PageProps {
 }
 
 export default async function SubmissionDetailPage({ params }: PageProps) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error("Submission Detail Page Error: Supabase URL or Anon Key missing!");
-      return ( <div className="container mx-auto p-6 text-center text-red-500">Server configuration error.</div> );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createClient();
     const submissionId = params.id;
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       redirect('/login');
     }
+
+    // --- ADD ACCESS CHECK ---
+    const hasAccess = await checkUserAccessStatus(user.id);
+    if (!hasAccess) {
+      const redirectUrl = await getSubscriptionRedirectUrl(user.id);
+      console.log(`User ${user.id} denied access to submission view, redirecting to ${redirectUrl}`);
+      redirect(redirectUrl);
+    }
+    // --- END ACCESS CHECK ---
 
     const { data: submission, error: fetchError } = await supabase
       .from('submissions')

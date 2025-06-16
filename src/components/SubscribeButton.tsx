@@ -5,7 +5,19 @@ import React, { useState, useTransition } from 'react';
 import { createCheckoutSession } from '@/app/_actions/checkActions'; // Import the Server Action
 import toast from 'react-hot-toast';
 
-export default function SubscribeButton() {
+interface SubscribeButtonProps {
+  buttonText?: string;
+  className?: string;
+  bypassPayment?: boolean;
+  trialDays?: number;
+}
+
+export default function SubscribeButton({ 
+  buttonText = 'Start Subscription',
+  className = "inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed",
+  bypassPayment = false,
+  trialDays = 30
+}: SubscribeButtonProps) {
   // useTransition is helpful for loading states with Server Actions
   // isPending will be true while the action is executing
   const [isPending, startTransition] = useTransition();
@@ -16,7 +28,7 @@ export default function SubscribeButton() {
 
     // startTransition keeps the UI interactive during action execution
     startTransition(async () => {
-      const result = await createCheckoutSession(); // Call the server action
+      const result = await createCheckoutSession(bypassPayment, trialDays); // Pass trial configuration
 
       if (result.error) {
         console.error("Checkout Error:", result.error);
@@ -41,9 +53,9 @@ export default function SubscribeButton() {
     <button
       onClick={handleSubscribeClick}
       disabled={isPending} // Disable button while action is running
-      className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+      className={className}
     >
-      {isPending ? 'Processing...' : 'Start 30-Day Free Trial'}
+      {isPending ? 'Processing...' : buttonText}
     </button>
     // Optionally display error message near the button
     // {errorMessage && <p className="text-red-500 text-sm mt-2">{errorMessage}</p>}

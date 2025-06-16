@@ -2,7 +2,8 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server'; // Use the modified server client
-import { checkUserAccessStatus } from '@/lib/accessControl';
+import { checkUserAccessStatus, getSubscriptionRedirectUrl, debugUserAccess } from '@/lib/accessControl';
+import { getSubscriptionInfo } from '@/lib/subscriptionStatus';
 import GenreSelectionGrid from './GenreSelectionGrid'; // Client component for interaction
 
 // Genres data definition (Ensure dbValue matches your database exactly)
@@ -16,22 +17,8 @@ const genres = [
 
 // --- Server Component: PracticePage ---
 export default async function PracticePage() {
-    // --- Read Environment Variables ---
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    // --- Check if variables exist ---
-    if (!supabaseUrl || !supabaseKey) {
-      console.error("Practice Page Error: Supabase URL or Anon Key missing!");
-      return (
-          <div className="container mx-auto p-6 text-center text-red-500">
-              Server configuration error. Cannot load practice page.
-          </div>
-      );
-    }
-
-    // --- Create Client by PASSING variables (without await) ---
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // --- Create Supabase Client ---
+    const supabase = createClient();
 
     // Check user session first
     console.log("PracticePage: Checking user session...");
@@ -43,13 +30,35 @@ export default async function PracticePage() {
     }
     console.log(`PracticePage: User ${user.id} found.`);
 
-    // --- ADD ACCESS CHECK ---
+    // --- QUICK STATUS-BASED REDIRECT CHECK ---
+    console.log(`PracticePage: Checking subscription status for quick redirect...`);
+    const subscriptionInfo = await getSubscriptionInfo(user.id);
+    
+    if (subscriptionInfo) {
+        // Quick redirect for users who need to handle subscription first
+        if (subscriptionInfo.subscriptionStatus === 'trial') {
+            console.log(`User ${user.id} has 'trial' status, redirecting to start trial`);
+            redirect('/pricing');
+        }
+        
+        if (!subscriptionInfo.hasAccess) {
+            console.log(`User ${user.id} has no access, redirecting to subscription page`);
+            redirect('/pricing');
+        }
+    }
+
+    // --- FALLBACK ACCESS CHECK (if subscription info failed) ---
     console.log(`PracticePage: Checking access for user ${user.id}...`);
+    
+    // Debug the access check
+    await debugUserAccess(user.id);
+    
     const hasAccess = await checkUserAccessStatus(user.id);
     if (!hasAccess) {
         // User is logged in but doesn't have subscription/free access
-        console.log(`User ${user.id} denied access to /practice, redirecting to /pricing`);
-        redirect('/pricing'); // Redirect non-subscribed users to pricing page
+        const redirectUrl = await getSubscriptionRedirectUrl(user.id);
+        console.log(`User ${user.id} denied access to /practice, redirecting to ${redirectUrl}`);
+        redirect(redirectUrl); // Redirect to appropriate subscription page
     }
     console.log(`PracticePage: User ${user.id} has access.`);
     // --- END ACCESS CHECK ---

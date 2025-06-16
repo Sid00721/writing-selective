@@ -4,17 +4,8 @@ import { createClient } from '@/lib/supabase/server'; // Your server-side Supaba
 // import { cookies } from 'next/headers'; // cookies() is called within your createClient
 
 export async function GET(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; // Or your SERVICE_ROLE_KEY if appropriate for server-to-server
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("API Route Error: Supabase URL or Key missing in environment variables!");
-    return NextResponse.json({ error: 'Server configuration error. Unable to connect to database.' }, { status: 500 });
-  }
-
-  // Initialize the Supabase client using your server-side helper
-  // This matches the signature export function createClient(supabaseUrl: string, supabaseKey: string)
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  // Initialize the Supabase client
+  const supabase = createClient();
 
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('userId');

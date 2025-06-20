@@ -15,6 +15,7 @@ import type { SubmissionItemData } from '@/components/dashboard/SubmissionListIt
 interface RawSupabaseSubmission {
     id: number;
     created_at: string;
+    feedback_status?: 'pending' | 'completed' | 'error' | null;
     prompts: { genre: string; prompt_text: string; } | { genre: string; prompt_text: string; }[] | null;
     overall_score?: number | null;
     // scores_by_criterion is not directly used for the list display anymore,
@@ -50,17 +51,17 @@ export default async function DashboardPage() {
   const initialItemsPerPage = 10; // How many to load initially
   let initialTotalCount = 0;
 
-  // Fetch initial submissions with total count based on default filters (none in this case, just user's scored submissions)
+  // Fetch initial submissions with total count based on default filters (none in this case, just user's submissions)
   const { data: rawInitialSubmissions, error: fetchError, count: rawInitialTotalCount } = await supabase
     .from('submissions')
     .select(`
         id,
         created_at,
+        feedback_status,
         prompts ( genre, prompt_text ),
         overall_score
     `, { count: 'exact' }) // Get total count matching these initial criteria
     .eq('user_id', user.id)
-    .not('overall_score', 'is', null) // Consider only scored submissions for initial display and count
     .order('created_at', { ascending: false }) // Default sort for initial load
     .limit(initialItemsPerPage);
 
@@ -83,6 +84,7 @@ export default async function DashboardPage() {
       promptTitle: currentPromptData?.prompt_text || 'Untitled Prompt',
       date: new Date(sub.created_at).toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' }),
       overallScorePercentage: overallScorePercentage,
+      feedbackStatus: sub.feedback_status,
       viewLink: `/submission/${sub.id}`,
     };
   });

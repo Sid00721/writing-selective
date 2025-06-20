@@ -29,11 +29,11 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         created_at,
+        feedback_status,
         prompts!inner ( genre, prompt_text ), 
         overall_score
       `, { count: 'exact' }) // Fetch count for pagination, !inner join ensures prompt exists
-      .eq('user_id', userId)
-      .not('overall_score', 'is', null); // Only consider submissions that have been scored
+      .eq('user_id', userId);
 
     // Apply search term (if provided)
     // This searches across prompt_text and genre in the related 'prompts' table

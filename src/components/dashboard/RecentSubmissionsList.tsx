@@ -9,6 +9,7 @@ import Link from 'next/link';
 interface ClientFetchedApiSubmission {
   id: number;
   created_at: string;
+  feedback_status?: 'pending' | 'completed' | 'error' | null;
   // With !inner join in API, prompts should always be an object if the submission is returned
   prompts: { genre: string; prompt_text: string; } | null; // Keep as potentially null if RLS could nullify it despite inner join
   overall_score?: number | null;
@@ -94,6 +95,7 @@ export function RecentSubmissionsList({
           promptTitle: currentPromptData?.prompt_text || 'Untitled Prompt',
           date: new Date(sub.created_at).toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' }),
           overallScorePercentage: overallScorePercentage,
+          feedbackStatus: sub.feedback_status,
           viewLink: `/submission/${sub.id}`,
         };
       });
@@ -114,6 +116,23 @@ export function RecentSubmissionsList({
       setIsLoading(false);
     }
   }, [userId, debouncedSearchTerm, sortOption, selectedGenre, itemsPerPage]);
+
+  // Auto-refresh when there are pending submissions
+  useEffect(() => {
+    const hasPendingSubmissions = displayedSubmissions.some(sub => sub.feedbackStatus === 'pending');
+    
+    if (hasPendingSubmissions) {
+      const interval = setInterval(() => {
+        console.log('Auto-refreshing submissions due to pending feedback...');
+        // Refresh the current page without changing search/filter parameters
+        fetchSubmissionsData(1).catch(error => {
+          console.error('Error during auto-refresh:', error);
+        });
+      }, 15000); // Refresh every 15 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [displayedSubmissions, fetchSubmissionsData]);
 
   // Effect to re-fetch when filters/sort change
   useEffect(() => {

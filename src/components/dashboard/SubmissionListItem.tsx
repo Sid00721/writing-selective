@@ -9,6 +9,7 @@ export interface SubmissionItemData {
   promptTitle: string;
   date: string;
   overallScorePercentage: number;
+  feedbackStatus?: 'pending' | 'completed' | 'error' | null;
   viewLink: string;
 }
 
@@ -36,11 +37,42 @@ export function SubmissionListItem({
   promptTitle,
   date,
   overallScorePercentage,
+  feedbackStatus,
   viewLink,
 }: SubmissionItemData) {
   const scoreButtonClass = getScoreButtonClass(overallScorePercentage);
   const genreButtonClass = getGenreButtonClass(genre);
   const commonButtonStyle = "px-3 py-1.5 rounded-md text-sm shadow-sm transition-colors";
+
+  const getStatusDisplay = () => {
+    switch (feedbackStatus) {
+      case 'pending':
+        return (
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500"></div>
+            <span className="text-sm font-medium text-orange-600">Generating Feedback...</span>
+          </div>
+        );
+      case 'error':
+        return (
+          <span className="text-sm font-medium text-red-600 bg-red-100 px-3 py-1 rounded-md">
+            Error - Click to View
+          </span>
+        );
+      case 'completed':
+        return (
+          <span className={`${commonButtonStyle} ${scoreButtonClass} font-bold text-white min-w-[70px] text-center`}>
+            {overallScorePercentage}%
+          </span>
+        );
+      default:
+        return (
+          <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-md">
+            Processing...
+          </span>
+        );
+    }
+  };
 
   return (
     <div className="py-4 flex flex-col md:flex-row items-center gap-x-4 md:gap-x-6">
@@ -67,9 +99,7 @@ export function SubmissionListItem({
 
       {/* 3. Score & Action (Right Aligned) */}
       <div className="flex-shrink-0 flex items-center gap-3 mt-2 md:mt-0 ml-0 md:ml-auto w-full md:w-auto justify-center md:justify-end">
-        <span className={`${commonButtonStyle} ${scoreButtonClass} font-bold text-white min-w-[70px] text-center`}>
-          {overallScorePercentage}%
-        </span>
+        {getStatusDisplay()}
         <Link
           href={viewLink}
           className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center whitespace-nowrap transition-colors"

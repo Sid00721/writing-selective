@@ -38,11 +38,41 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
   const editorStateRef = useRef(editorStateJson);
   const [isMounted, setIsMounted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'saving' | 'generating' | 'redirecting'>('idle');
   const [wordCount, setWordCount] = useState(0);
 
   const supabase = createClient();
 
   useEffect(() => { setIsMounted(true); }, []);
+
+  // Prevent navigation during submission
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isSubmitting) {
+        e.preventDefault();
+        e.returnValue = 'Your submission is being processed. Are you sure you want to leave?';
+        return 'Your submission is being processed. Are you sure you want to leave?';
+      }
+    };
+
+    if (isSubmitting) {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      // Also disable the back button during submission
+      window.history.pushState(null, '', window.location.href);
+      const handlePopState = () => {
+        if (isSubmitting) {
+          window.history.pushState(null, '', window.location.href);
+        }
+      };
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [isSubmitting]);
+
   useEffect(() => { editorStateRef.current = editorStateJson; }, [editorStateJson]);
   const handleEditorChange = useCallback((newStateJson: string) => setEditorStateJson(newStateJson), []);
   const handleTextContentChange = useCallback((text: string) => {
@@ -51,26 +81,35 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
   }, []);
 
   const submitWriting = useCallback(async () => {
-    // ... (submitWriting logic remains largely the same) ...
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const loadingToastId = toast.loading('Submitting your work...');
+    setSubmissionStatus('saving');
+    
+    const loadingToastId = toast.loading('Saving your submission...', {
+      duration: Infinity, // Keep toast until we manually dismiss it
+    });
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast.error('You must be logged in to submit.', { id: loadingToastId, icon: <AlertCircle /> });
-      setIsSubmitting(false); return;
+      setIsSubmitting(false);
+      setSubmissionStatus('idle');
+      return;
     }
     const currentContentJson = editorStateRef.current;
     if (!currentContentJson || currentContentJson === initialEmptyState || wordCount === 0) {
       toast.error('Cannot submit empty writing.', { id: loadingToastId, icon: <AlertCircle /> });
-      setIsSubmitting(false); return;
+      setIsSubmitting(false);
+      setSubmissionStatus('idle');
+      return;
     }
     let parsedContent;
     try { parsedContent = JSON.parse(currentContentJson); }
     catch (e) {
       toast.error('Error processing editor content.', { id: loadingToastId, icon: <AlertCircle /> });
-      setIsSubmitting(false); return;
+      setIsSubmitting(false);
+      setSubmissionStatus('idle');
+      return;
     }
 
     const submissionData = {
@@ -84,18 +123,50 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
     if (insertError || !insertResult) {
       toast.error(`Submission failed: ${insertError?.message || 'Unknown error'}`, { id: loadingToastId, icon: <AlertCircle /> });
       setIsSubmitting(false);
+      setSubmissionStatus('idle');
     } else {
       const newSubmissionId = insertResult.id;
-      toast.success('Submission saved! Generating feedback...', { id: loadingToastId, icon: <CheckCircle />, duration: 3000 });
-      generateFeedbackForSubmission(newSubmissionId)
-        .then(res => console.log("Feedback generation result:", res))
-        .catch(err => console.error("Error calling feedback action:", err));
+      setSubmissionStatus('generating');
       
+      // Update toast to show feedback generation
+      toast.loading('Submission saved! Generating AI feedback...', { 
+        id: loadingToastId,
+        duration: Infinity,
+      });
+      
+      try {
+        const feedbackResult = await generateFeedbackForSubmission(newSubmissionId);
+        
+        if (feedbackResult.success) {
+          setSubmissionStatus('redirecting');
+          toast.success('Feedback generated successfully! Redirecting to dashboard...', { 
+            id: loadingToastId, 
+            icon: <CheckCircle />, 
+            duration: 2000 
+          });
+        } else {
+          // Feedback generation failed, but submission was saved
+          toast.error(`Submission saved, but feedback generation failed: ${feedbackResult.error || 'Unknown error'}`, { 
+            id: loadingToastId, 
+            icon: <AlertCircle />,
+            duration: 5000
+          });
+        }
+      } catch (err) {
+        console.error("Error calling feedback action:", err);
+        toast.error('Submission saved, but feedback generation encountered an error. You can check your submission status on the dashboard.', { 
+          id: loadingToastId, 
+          icon: <AlertCircle />,
+          duration: 5000
+        });
+      }
+      
+      // Always redirect to dashboard after a delay, regardless of feedback success
       setTimeout(() => {
         setIsSubmitting(false);
+        setSubmissionStatus('idle');
         window.location.href = '/dashboard';
-        toast.dismiss(loadingToastId);
-      }, 1000);
+      }, 2000);
     }
   }, [currentPrompt, supabase, isSubmitting, wordCount]);
 
@@ -105,6 +176,24 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
   }, [submitWriting]);
 
   const handleSubmitClick = () => { submitWriting(); };
+
+  const getSubmitButtonText = () => {
+    switch (submissionStatus) {
+      case 'saving': return 'Saving...';
+      case 'generating': return 'Generating Feedback...';
+      case 'redirecting': return 'Redirecting...';
+      default: return isSubmitting ? 'Processing...' : 'Submit Now';
+    }
+  };
+
+  const getStatusText = () => {
+    switch (submissionStatus) {
+      case 'saving': return 'Saving your submission to the database...';
+      case 'generating': return 'AI is analyzing your writing and generating feedback...';
+      case 'redirecting': return 'Taking you to the dashboard...';
+      default: return 'Processing your submission...';
+    }
+  };
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -121,7 +210,25 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
 
 
   return (
-    <div className="space-y-6 md:space-y-8">
+    <div className="space-y-6 md:space-y-8 relative">
+      {/* Submission Overlay */}
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-black bg-opacity-25 z-40 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl border">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-800"></div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{getSubmitButtonText()}</h3>
+                <p className="text-sm text-gray-600 mt-1">{getStatusText()}</p>
+                {submissionStatus === 'generating' && (
+                  <p className="text-xs text-gray-500 mt-2">This may take up to a minute.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Info Bar: Prompt/Genre on Left, Timer/Word Count on Right */}
       <div className="flex flex-col md:flex-row justify-between items-start gap-4 py-3 border-b border-gray-200">
         {/* Left: Prompt Info */}
@@ -167,9 +274,16 @@ const WritingSession: React.FC<WritingSessionProps> = ({ currentPrompt }) => {
           onClick={handleSubmitClick}
           disabled={isSubmitting || wordCount === 0}
           className="px-8 py-2.5 bg-gray-800 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition duration-150 ease-in-out disabled:opacity-60 disabled:cursor-not-allowed"
+          aria-describedby={isSubmitting ? "submission-status" : undefined}
         >
-          {isSubmitting ? 'Submitting...' : 'Submit Now'}
+          {getSubmitButtonText()}
         </button>
+        {isSubmitting && (
+          <div id="submission-status" className="ml-4 flex items-center text-sm text-gray-600" role="status" aria-live="polite">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-800 mr-2"></div>
+            {getStatusText()}
+          </div>
+        )}
       </div>
     </div>
   );
